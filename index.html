@@ -135,9 +135,9 @@
         <!-- Row 4: 3D Objects & Controls -->
         <div class="menu-row">
             <span style="color:#aaa; font-size:11px;">3D:</span>
-            <button onclick="event.stopPropagation(); spawn3D('cube'); toggleMoreMenu();">Cube</button>
-            <button onclick="event.stopPropagation(); spawn3D('sphere'); toggleMoreMenu();">Sphere</button>
-            <button onclick="event.stopPropagation(); spawn3D('cylinder'); toggleMoreMenu();">Cyl</button>
+            <button onclick="spawn3D('cube')">Cube</button>
+            <button onclick="spawn3D('sphere')">Sphere</button>
+            <button onclick="spawn3D('cylinder')">Cyl</button>
             <button id="btn-trans" onclick="toggleTransparency()">Trans</button>
             <button id="btn-rot" class="active" onclick="toggleRotation()">Rot</button>
             <button onclick="clear3D()" style="background: #c9302c;">Clear 3D</button>
@@ -491,6 +491,8 @@
             renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('canvas-3d'), alpha: true, antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
 
+            window.renderer = renderer; // Fix resize renderer reference
+
             controls = new THREE.OrbitControls(camera, renderer.domElement);
             controls.enableDamping = true;
 
@@ -534,6 +536,7 @@
             scene.add(currentMesh);
             
             if (controls) controls.reset();
+            moreMenu.style.display = 'none'; // Close more menu on spawn
         }
 
         function toggleTransparency() {
