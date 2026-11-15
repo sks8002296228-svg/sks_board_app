@@ -15,10 +15,9 @@
 
         canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; touch-action: none; }
         #whiteboard { z-index: 5; pointer-events: auto; }
-        #canvas-3d { z-index: 10; pointer-events: none; } /* Default non-blocking for smooth drawing */
-        #canvas-3d.interactive { pointer-events: auto; } /* Enabled during 3D orbit mode */
+        #canvas-3d { z-index: 10; pointer-events: none; }
+        #canvas-3d.interactive { pointer-events: auto; }
 
-        /* Webcam Floating Box */
         #webcam-container {
             position: absolute; top: 20px; right: 20px; width: 200px; height: 150px;
             background: #000; border: 2px solid #00adb5; border-radius: 8px;
@@ -26,27 +25,29 @@
         }
         #webcam-video { width: 100%; height: 100%; object-fit: cover; }
 
-        /* Draggable Toolbar */
+        /* Fixed Horizontal & Compact Draggable Toolbar */
         #toolbar {
             position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
             background: rgba(30, 30, 30, 0.95); backdrop-filter: blur(10px);
-            padding: 8px 12px; border-radius: 12px; display: flex; align-items: center; gap: 8px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.6); z-index: 300; flex-wrap: nowrap; justify-content: center;
-            cursor: move; touch-action: none; border: 1px solid rgba(255,255,255,0.1);
-            white-space: nowrap;
+            padding: 6px 10px; border-radius: 12px; display: inline-flex; align-items: center; gap: 6px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.6); z-index: 300; flex-wrap: nowrap;
+            cursor: move; touch-action: none; border: 1px solid rgba(255,255,255,0.2);
+            white-space: nowrap; max-width: 98vw;
         }
 
-        .tool-group { display: flex; align-items: center; gap: 6px; border-right: 1px solid rgba(255,255,255,0.2); padding-right: 8px; cursor: default; }
+        .tool-group { display: flex; align-items: center; gap: 4px; border-right: 1px solid rgba(255,255,255,0.2); padding-right: 6px; cursor: default; flex-shrink: 0; }
+        .tool-group:last-child { border-right: none; }
 
         button, select, label {
-            background: #2a2a2a; color: white; border: 1px solid #444; padding: 6px 10px;
-            border-radius: 6px; cursor: pointer; font-size: 12px; transition: 0.2s;
-            display: inline-flex; align-items: center; gap: 4px;
+            background: #2a2a2a; color: white; border: 1px solid #444; padding: 5px 8px;
+            border-radius: 6px; cursor: pointer; font-size: 11px; transition: 0.2s;
+            display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; flex-shrink: 0;
         }
         button:hover, select:hover, label:hover { background: #3a3a3a; }
         button.active { background: #00adb5; border-color: #00adb5; font-weight: bold; }
 
-        .preset-color { width: 20px; height: 20px; border-radius: 50%; cursor: pointer; border: 2px solid #fff; display: inline-block; }
+        .preset-color { width: 18px; height: 18px; border-radius: 50%; cursor: pointer; border: 2px solid #fff; display: inline-block; flex-shrink: 0; }
+        input[type="range"] { width: 60px; accent-color: #00adb5; vertical-align: middle; }
     </style>
 </head>
 <body>
@@ -59,27 +60,23 @@
     <div id="webcam-container"><video id="webcam-video" autoplay playsinline></video></div>
 
     <div id="toolbar">
-        <!-- Interaction Mode (Draw vs 3D Orbit) -->
         <div class="tool-group">
             <button id="mode-draw" class="active" onclick="setInteraction('draw')">✍️ Draw</button>
             <button id="mode-3d" onclick="setInteraction('3d')">🧊 3D Orbit</button>
         </div>
 
-        <!-- Drawing Modes -->
         <div class="tool-group">
             <button id="btn-pen" class="active" onclick="setMode('pen')">🖊️ Pen</button>
             <button id="btn-highlighter" onclick="setMode('highlighter')">🖍️ High</button>
             <button id="btn-eraser" onclick="setMode('eraser')">🧹 Erase</button>
         </div>
 
-        <!-- Adjustable Slider for Size -->
         <div class="tool-group">
-            <label style="font-size: 11px;">Size:</label>
+            <label>Size:</label>
             <input type="range" id="pen-size" min="1" max="50" value="5" oninput="setBrushSize(this.value)">
-            <span id="size-val" style="color: #fff; font-size: 11px; width: 20px;">5</span>
+            <span id="size-val" style="color: #fff; width: 15px;">5</span>
         </div>
 
-        <!-- Color Presets -->
         <div class="tool-group">
             <div class="preset-color" style="background: #00adb5;" onclick="setColor('#00adb5')"></div>
             <div class="preset-color" style="background: #ffffff;" onclick="setColor('#ffffff')"></div>
@@ -88,7 +85,6 @@
             <div class="preset-color" style="background: #4caf50;" onclick="setColor('#4caf50')"></div>
         </div>
 
-        <!-- 2D Shapes -->
         <div class="tool-group">
             <button onclick="setShape('free')" id="shape-free" class="active">Free</button>
             <button onclick="setShape('line')" id="shape-line">Line</button>
@@ -97,52 +93,45 @@
             <button onclick="setShape('arrow')" id="shape-arrow">Arrow</button>
         </div>
 
-        <!-- Canvas History & Clear -->
         <div class="tool-group">
             <button onclick="undoCanvas()" title="Undo">↩️</button>
             <button onclick="redoCanvas()" title="Redo">↪️</button>
             <button onclick="clearCanvas()" style="background: #d9534f;" title="Clear">🗑️</button>
         </div>
 
-        <!-- Slide Navigation -->
         <div class="tool-group">
             <button onclick="prevSlide()">◀</button>
-            <span id="slide-indicator" style="font-size: 12px; color: #aaa;">1/1</span>
+            <span id="slide-indicator" style="font-size: 11px; color: #aaa;">1/1</span>
             <button onclick="nextSlide()">▶</button>
             <button onclick="addSlide()">+ Slide</button>
         </div>
 
-        <!-- Media Uploads -->
         <div class="tool-group">
             <label for="pdf-upload">📄 PDF</label>
             <input type="file" id="pdf-upload" accept="application/pdf" style="display: none;" onchange="handlePDF(event)">
             <button id="btn-cam" onclick="toggleWebcam()">📹 Cam</button>
         </div>
 
-        <!-- 3D Shapes & Controls -->
         <div class="tool-group">
             <button onclick="spawn3D('cube')">🧊 Cube</button>
             <button onclick="spawn3D('sphere')">⚽ Sphere</button>
             <button onclick="spawn3D('cylinder')">🥫 Cyl</button>
             <button id="btn-trans" onclick="toggleTransparency()">👓 Trans</button>
             <button id="btn-rot" class="active" onclick="toggleRotation()">🔄 Rot</button>
-            <button onclick="clear3D()" style="background: #c9302c;">Clear 3D</button>
+            <button onclick="clear3D()" style="background: #c9302c;">Clear</button>
         </div>
 
-        <!-- Background Selection -->
         <div class="tool-group">
             <select id="bg-selector" onchange="changeBackground(this.value)">
-                <option value="dark">Dark BG</option>
-                <option value="white">White BG</option>
-                <option value="green">Chalkboard</option>
+                <option value="dark">Dark</option>
+                <option value="white">White</option>
+                <option value="green">Chalk</option>
                 <option value="grid">Grid</option>
-                <option value="lined">Lined</option>
             </select>
         </div>
 
-        <!-- Save Action -->
         <div class="tool-group" style="border: none;">
-            <button onclick="saveCanvas()" style="background: #5cb85c;">💾 Save</button>
+            <button onclick="saveCanvas()" style="background: #5cb85c;">💾</button>
         </div>
     </div>
 
@@ -170,12 +159,10 @@
                 document.getElementById('mode-draw').classList.add('active');
                 document.getElementById('mode-3d').classList.remove('active');
                 canvas3D.classList.remove('interactive');
-                canvas.style.pointerEvents = 'auto';
             } else {
                 document.getElementById('mode-3d').classList.add('active');
                 document.getElementById('mode-draw').classList.remove('active');
                 canvas3D.classList.add('interactive');
-                canvas.style.pointerEvents = 'none';
             }
         }
 
@@ -204,7 +191,6 @@
         window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
 
-        // Draggable Toolbar Implementation
         let isDragging = false;
         let offsetX, offsetY;
         toolbar.addEventListener('mousedown', (e) => {
@@ -271,10 +257,6 @@
                 container.style.background = '#111';
                 container.style.backgroundImage = 'linear-gradient(rgba(255,255,255,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px)';
                 container.style.backgroundSize = '20px 20px';
-            } else if (val === 'lined') {
-                container.style.background = '#111';
-                container.style.backgroundImage = 'linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px)';
-                container.style.backgroundSize = '100% 30px';
             }
         }
 
@@ -351,7 +333,7 @@
         }
 
         function drawArrow(fromx, fromy, tox, toy) {
-            const headlen = 15;
+            const headlen = 10;
             const dx = tox - fromx; const dy = toy - fromy;
             const angle = Math.atan2(dy, dx);
             ctx.beginPath();
@@ -420,8 +402,9 @@
         canvas.addEventListener('touchend', finishedPosition);
         canvas.addEventListener('touchmove', draw, { passive: false });
 
-        // --- 3D THREE.JS LOGIC WITH ORBIT CONTROLS & TRANSPARENCY ---
-        let scene, camera, renderer, currentMesh, controls;
+        var renderer, camera;
+
+        let scene, currentMesh, controls;
         let rotate3D = true;
         let isTransparent = false;
 
@@ -449,6 +432,7 @@
         }
 
         function spawn3D(type) {
+            setInteraction('3d');
             if (currentMesh) scene.remove(currentMesh);
 
             const geometry = createMeshGeometry(type);
