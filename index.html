@@ -4,148 +4,90 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SKS Board - Ultimate Teaching App</title>
-    <!-- Three.js for 3D Shapes -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body, html { width: 100%; height: 100%; overflow: hidden; background: #111; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         
-        #board-container {
-            position: relative;
-            width: 100vw;
-            height: 100vh;
-            background: #111;
-            cursor: crosshair;
-        }
+        #board-container { position: relative; width: 100vw; height: 100vh; cursor: crosshair; }
 
-        canvas {
-            position: absolute;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            touch-action: none;
-        }
-
+        canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; touch-action: none; }
         #canvas-3d { pointer-events: none; z-index: 10; }
         #whiteboard { z-index: 5; }
 
-        /* Webcam Floating Box */
         #webcam-container {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            width: 200px;
-            height: 150px;
-            background: #000;
-            border: 2px solid #00adb5;
-            border-radius: 8px;
-            overflow: hidden;
-            display: none;
-            z-index: 200;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            position: absolute; top: 20px; right: 20px; width: 200px; height: 150px;
+            background: #000; border: 2px solid #00adb5; border-radius: 8px;
+            overflow: hidden; display: none; z-index: 200; box-shadow: 0 4px 15px rgba(0,0,0,0.5);
         }
         #webcam-video { width: 100%; height: 100%; object-fit: cover; }
 
-        /* Toolbar UI */
         #toolbar {
-            position: absolute;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(30, 30, 30, 0.95);
-            backdrop-filter: blur(10px);
-            padding: 8px 12px;
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.6);
-            z-index: 300;
-            flex-wrap: wrap;
-            justify-content: center;
-            max-width: 98vw;
+            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+            background: rgba(30, 30, 30, 0.95); backdrop-filter: blur(10px);
+            padding: 8px 12px; border-radius: 12px; display: flex; align-items: center; gap: 8px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.6); z-index: 300; flex-wrap: wrap; justify-content: center; max-width: 98vw;
         }
 
-        .tool-group {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-            border-right: 1px solid rgba(255,255,255,0.2);
-            padding-right: 8px;
-        }
+        .tool-group { display: flex; align-items: center; gap: 6px; border-right: 1px solid rgba(255,255,255,0.2); padding-right: 8px; }
 
         button, select, label {
-            background: #2a2a2a;
-            color: white;
-            border: 1px solid #444;
-            padding: 6px 10px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 12px;
-            transition: 0.2s;
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
+            background: #2a2a2a; color: white; border: 1px solid #444; padding: 6px 10px;
+            border-radius: 6px; cursor: pointer; font-size: 12px; transition: 0.2s;
+            display: inline-flex; align-items: center; gap: 4px;
         }
-
         button:hover, select:hover, label:hover { background: #3a3a3a; }
         button.active { background: #00adb5; border-color: #00adb5; font-weight: bold; }
 
-        .preset-color {
-            width: 20px;
-            height: 20px;
-            border-radius: 50%;
-            cursor: pointer;
-            border: 2px solid #fff;
-            display: inline-block;
-        }
+        .preset-color { width: 20px; height: 20px; border-radius: 50%; cursor: pointer; border: 2px solid #fff; display: inline-block; }
     </style>
 </head>
 <body>
 
-    <div id="board-container">
+    <div id="board-container" style="background: #111;">
         <canvas id="whiteboard"></canvas>
         <canvas id="canvas-3d"></canvas>
     </div>
 
-    <!-- Webcam View -->
-    <div id="webcam-container">
-        <video id="webcam-video" autoplay playsinline></video>
-    </div>
+    <div id="webcam-container"><video id="webcam-video" autoplay playsinline></video></div>
 
-    <!-- Toolbar -->
     <div id="toolbar">
-        <!-- Tools Mode -->
         <div class="tool-group">
             <button id="btn-pen" class="active" onclick="setMode('pen')">🖊️ Pen</button>
             <button id="btn-highlighter" onclick="setMode('highlighter')">🖍️ High</button>
             <button id="btn-eraser" onclick="setMode('eraser')">🧹 Erase</button>
         </div>
 
-        <!-- Pen Sizes (New) -->
+        <!-- Adjustable Slider for Size -->
         <div class="tool-group">
-            <button onclick="setPenSize(2)" id="size-thin">Thin</button>
-            <button onclick="setPenSize(5)" id="size-med" class="active">Med</button>
-            <button onclick="setPenSize(12)" id="size-thick">Thick</button>
+            <label style="font-size: 11px;">Size:</label>
+            <input type="range" id="pen-size" min="1" max="50" value="5" oninput="setBrushSize(this.value)">
+            <span id="size-val" style="color: #fff; font-size: 11px; width: 25px;">5</span>
         </div>
 
-        <!-- Colors -->
         <div class="tool-group">
             <div class="preset-color" style="background: #00adb5;" onclick="setColor('#00adb5')"></div>
             <div class="preset-color" style="background: #ffffff;" onclick="setColor('#ffffff')"></div>
-            <div class="preset-color" style="background: #222222;" onclick="setColor('#222222')"></div>
             <div class="preset-color" style="background: #ff5722;" onclick="setColor('#ff5722')"></div>
             <div class="preset-color" style="background: #ffeb3b;" onclick="setColor('#ffeb3b')"></div>
             <div class="preset-color" style="background: #4caf50;" onclick="setColor('#4caf50')"></div>
         </div>
 
-        <!-- Undo / Redo / Trash -->
+        <!-- 2D Shapes -->
+        <div class="tool-group">
+            <button onclick="setShape('free')" id="shape-free" class="active">Free</button>
+            <button onclick="setShape('line')" id="shape-line">Line</button>
+            <button onclick="setShape('rect')" id="shape-rect">Rect</button>
+            <button onclick="setShape('circle')" id="shape-circle">Circle</button>
+            <button onclick="setShape('arrow')" id="shape-arrow">Arrow</button>
+        </div>
+
         <div class="tool-group">
             <button onclick="undoCanvas()" title="Undo">↩️</button>
             <button onclick="redoCanvas()" title="Redo">↪️</button>
             <button onclick="clearCanvas()" style="background: #d9534f;" title="Trash / Clear">🗑️</button>
         </div>
 
-        <!-- Slide Navigation -->
         <div class="tool-group">
             <button onclick="prevSlide()">◀</button>
             <span id="slide-indicator" style="font-size: 12px; color: #aaa;">1/1</span>
@@ -153,22 +95,21 @@
             <button onclick="addSlide()">+ Slide</button>
         </div>
 
-        <!-- PDF & Webcam -->
         <div class="tool-group">
             <label for="pdf-upload">📄 PDF</label>
             <input type="file" id="pdf-upload" accept="application/pdf" style="display: none;" onchange="handlePDF(event)">
             <button id="btn-cam" onclick="toggleWebcam()">📹 Cam</button>
         </div>
 
-        <!-- 3D Shapes -->
+        <!-- 3D Shapes & Rotation Toggle -->
         <div class="tool-group">
             <button onclick="spawn3D('cube')">🧊 Cube</button>
             <button onclick="spawn3D('sphere')">⚽ Sphere</button>
             <button onclick="spawn3D('cylinder')">🥫 Cyl</button>
+            <button id="btn-rot" class="active" onclick="toggleRotation()">🔄 Rot</button>
             <button onclick="clear3D()" style="background: #c9302c;">Clear 3D</button>
         </div>
 
-        <!-- Backgrounds -->
         <div class="tool-group">
             <select id="bg-selector" onchange="changeBackground(this.value)">
                 <option value="dark">Dark BG</option>
@@ -179,7 +120,6 @@
             </select>
         </div>
 
-        <!-- Save Action -->
         <div class="tool-group" style="border: none;">
             <button onclick="saveCanvas()" style="background: #5cb85c;">💾 Save</button>
         </div>
@@ -193,7 +133,9 @@
         let painting = false;
         let mode = 'pen'; 
         let currentColor = '#00adb5'; 
-        let currentSize = 5; // Default Medium
+        let currentSize = 5;
+        let currentShape = 'free';
+        let startX, startY, snapshot;
         
         let undoStack = [];
         let redoStack = [];
@@ -208,18 +150,11 @@
         function resizeCanvas() {
             const tempCanvas = document.createElement('canvas');
             const tempCtx = tempCanvas.getContext('2d');
-            tempCanvas.width = canvas.width;
-            tempCanvas.height = canvas.height;
-            if(canvas.width > 0 && canvas.height > 0) {
-                tempCtx.drawImage(canvas, 0, 0);
-            }
+            tempCanvas.width = canvas.width; tempCanvas.height = canvas.height;
+            if(canvas.width > 0 && canvas.height > 0) tempCtx.drawImage(canvas, 0, 0);
 
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-            
-            if(tempCanvas.width > 0 && tempCanvas.height > 0) {
-                ctx.drawImage(tempCanvas, 0, 0);
-            }
+            canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+            if(tempCanvas.width > 0 && tempCanvas.height > 0) ctx.drawImage(tempCanvas, 0, 0);
 
             if (window.renderer) {
                 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -233,35 +168,33 @@
         function setMode(newMode) {
             mode = newMode;
             document.querySelectorAll('#toolbar button').forEach(b => {
-                if(b.id.startsWith('btn-')) b.classList.remove('active');
+                if(b.id.startsWith('btn-pen') || b.id.startsWith('btn-highlighter') || b.id.startsWith('btn-eraser')) b.classList.remove('active');
             });
-            document.getElementById('btn-' + mode).classList.add('active');
+            if(mode === 'pen') document.getElementById('btn-pen').classList.add('active');
+            if(mode === 'highlighter') document.getElementById('btn-highlighter').classList.add('active');
+            if(mode === 'eraser') document.getElementById('btn-eraser').classList.add('active');
         }
 
-        function setPenSize(size) {
-            currentSize = size;
-            document.getElementById('size-thin').classList.remove('active');
-            document.getElementById('size-med').classList.remove('active');
-            document.getElementById('size-thick').classList.remove('active');
-
-            if(size === 2) document.getElementById('size-thin').classList.add('active');
-            else if(size === 5) document.getElementById('size-med').classList.add('active');
-            else if(size === 12) document.getElementById('size-thick').classList.add('active');
+        function setBrushSize(size) {
+            currentSize = parseInt(size);
+            document.getElementById('size-val').innerText = size;
         }
 
         function setColor(color) { currentColor = color; }
 
+        function setShape(shape) {
+            currentShape = shape;
+            document.querySelectorAll('.tool-group button').forEach(b => {
+                if(b.id.startsWith('shape-')) b.classList.remove('active');
+            });
+            document.getElementById('shape-' + shape).classList.add('active');
+        }
+
         function changeBackground(val) {
-            if (val === 'dark') {
-                container.style.background = '#111';
-                container.style.backgroundImage = 'none';
-            } else if (val === 'white') {
-                container.style.background = '#ffffff';
-                container.style.backgroundImage = 'none';
-            } else if (val === 'green') {
-                container.style.background = '#0f381e';
-                container.style.backgroundImage = 'none';
-            } else if (val === 'grid') {
+            if (val === 'dark') { container.style.background = '#111'; container.style.backgroundImage = 'none'; }
+            else if (val === 'white') { container.style.background = '#ffffff'; container.style.backgroundImage = 'none'; }
+            else if (val === 'green') { container.style.background = '#0f381e'; container.style.backgroundImage = 'none'; }
+            else if (val === 'grid') {
                 container.style.background = '#111';
                 container.style.backgroundImage = 'linear-gradient(rgba(255,255,255,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px)';
                 container.style.backgroundSize = '20px 20px';
@@ -284,8 +217,10 @@
             painting = true;
             saveState();
             const pos = getMousePos(e);
+            startX = pos.x; startY = pos.y;
             ctx.beginPath();
-            ctx.moveTo(pos.x, pos.y);
+            ctx.moveTo(startX, startY);
+            snapshot = ctx.getImageData(0, 0, canvas.width, canvas.height);
         }
 
         function finishedPosition() {
@@ -299,6 +234,12 @@
             e.preventDefault();
             const pos = getMousePos(e);
 
+            if (currentShape !== 'free' && mode !== 'eraser') {
+                ctx.putImageData(snapshot, 0, 0);
+                drawShape(pos.x, pos.y);
+                return;
+            }
+
             ctx.lineWidth = currentSize;
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
@@ -306,7 +247,7 @@
             if (mode === 'eraser') {
                 ctx.strokeStyle = container.style.background.includes('rgb(255, 255, 255)') || container.style.background === '#ffffff' ? '#ffffff' : '#111111';
                 ctx.globalAlpha = 1.0;
-                ctx.lineWidth = 25;
+                ctx.lineWidth = currentSize * 3;
             } else if (mode === 'highlighter') {
                 ctx.strokeStyle = currentColor;
                 ctx.globalAlpha = 0.3;
@@ -316,6 +257,35 @@
             }
 
             ctx.lineTo(pos.x, pos.y);
+            ctx.stroke();
+        }
+
+        function drawShape(x, y) {
+            ctx.strokeStyle = currentColor;
+            ctx.lineWidth = currentSize;
+            ctx.globalAlpha = (mode === 'highlighter') ? 0.3 : 1.0;
+
+            if (currentShape === 'line') {
+                ctx.beginPath(); ctx.moveTo(startX, startY); ctx.lineTo(x, y); ctx.stroke();
+            } else if (currentShape === 'rect') {
+                ctx.strokeRect(startX, startY, x - startX, y - startY);
+            } else if (currentShape === 'circle') {
+                let radius = Math.sqrt(Math.pow(x - startX, 2) + Math.pow(y - startY, 2));
+                ctx.beginPath(); ctx.arc(startX, startY, radius, 0, 2 * Math.PI); ctx.stroke();
+            } else if (currentShape === 'arrow') {
+                drawArrow(startX, startY, x, y);
+            }
+        }
+
+        function drawArrow(fromx, fromy, tox, toy) {
+            const headlen = 15;
+            const dx = tox - fromx; const dy = toy - fromy;
+            const angle = Math.atan2(dy, dx);
+            ctx.beginPath();
+            ctx.moveTo(fromx, fromy); ctx.lineTo(tox, toy);
+            ctx.lineTo(tox - headlen * Math.cos(angle - Math.PI / 6), toy - headlen * Math.sin(angle - Math.PI / 6));
+            ctx.moveTo(tox, toy);
+            ctx.lineTo(tox - headlen * Math.cos(angle + Math.PI / 6), toy - headlen * Math.sin(angle + Math.PI / 6));
             ctx.stroke();
         }
 
@@ -335,10 +305,7 @@
             }
         }
 
-        function clearCanvas() {
-            saveState();
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-        }
+        function clearCanvas() { saveState(); ctx.clearRect(0, 0, canvas.width, canvas.height); }
 
         function saveCanvas() {
             const link = document.createElement('a');
@@ -361,16 +328,13 @@
             if (!webcamActive) {
                 navigator.mediaDevices.getUserMedia({ video: true })
                 .then(stream => {
-                    video.srcObject = stream;
-                    box.style.display = 'block';
-                    webcamActive = true;
+                    video.srcObject = stream; box.style.display = 'block'; webcamActive = true;
                     document.getElementById('btn-cam').classList.add('active');
                 }).catch(err => alert('Webcam permission denied.'));
             } else {
                 let stream = video.srcObject;
                 if(stream) stream.getTracks().forEach(track => track.stop());
-                box.style.display = 'none';
-                webcamActive = false;
+                box.style.display = 'none'; webcamActive = false;
                 document.getElementById('btn-cam').classList.remove('active');
             }
         }
@@ -382,9 +346,9 @@
         canvas.addEventListener('touchend', finishedPosition);
         canvas.addEventListener('touchmove', draw, { passive: false });
 
-
         // --- 3D THREE.JS LOGIC ---
         let scene, camera, renderer, currentMesh;
+        let rotate3D = true;
 
         function init3D() {
             scene = new THREE.Scene();
@@ -392,11 +356,8 @@
             renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('canvas-3d'), alpha: true, antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
 
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
-            scene.add(ambientLight);
-            const pointLight = new THREE.PointLight(0xffffff, 1);
-            pointLight.position.set(10, 10, 10);
-            scene.add(pointLight);
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.7); scene.add(ambientLight);
+            const pointLight = new THREE.PointLight(0xffffff, 1); pointLight.position.set(10, 10, 10); scene.add(pointLight);
 
             camera.position.z = 5;
             animate3D();
@@ -414,13 +375,16 @@
             scene.add(currentMesh);
         }
 
-        function clear3D() {
-            if (currentMesh) { scene.remove(currentMesh); currentMesh = null; }
+        function toggleRotation() {
+            rotate3D = !rotate3D;
+            document.getElementById('btn-rot').classList.toggle('active');
         }
+
+        function clear3D() { if (currentMesh) { scene.remove(currentMesh); currentMesh = null; } }
 
         function animate3D() {
             requestAnimationFrame(animate3D);
-            if (currentMesh) { currentMesh.rotation.x += 0.01; currentMesh.rotation.y += 0.015; }
+            if (currentMesh && rotate3D) { currentMesh.rotation.x += 0.01; currentMesh.rotation.y += 0.015; }
             renderer.render(scene, camera);
         }
 
