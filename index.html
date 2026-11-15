@@ -64,7 +64,7 @@
 </head>
 <body>
 
-    <div id="board-container" style="background: #111;">
+    <div id="board-container" style="background: #0f381e;">
         <canvas id="whiteboard"></canvas>
         <canvas id="laser-canvas"></canvas>
         <canvas id="canvas-3d"></canvas>
@@ -146,9 +146,9 @@
         <!-- Row 5: Background & Save -->
         <div class="menu-row">
             <select id="bg-selector" onchange="changeBackground(this.value)">
+                <option value="green">Chalkboard</option>
                 <option value="dark">Dark BG</option>
                 <option value="white">White BG</option>
-                <option value="green">Chalkboard</option>
                 <option value="grid">Grid / Graph</option>
             </select>
             <button onclick="saveCanvas()" style="background: #5cb85c;">💾 Save Notes</button>
@@ -480,7 +480,6 @@
         container.addEventListener('touchmove', draw, { passive: false });
 
         var renderer, camera;
-
         let scene, currentMesh, controls;
         let rotate3D = true;
         let isTransparent = false;
@@ -488,14 +487,16 @@
         function init3D() {
             scene = new THREE.Scene();
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-            renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('canvas-3d'), alpha: true, antialias: true });
+            
+            const canvas3DElement = document.getElementById('canvas-3d');
+            renderer = new THREE.WebGLRenderer({ canvas: canvas3DElement, alpha: true, antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
             window.renderer = renderer;
 
             controls = new THREE.OrbitControls(camera, renderer.domElement);
             controls.enableDamping = true;
 
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.9);
             scene.add(ambientLight);
 
             const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
@@ -579,7 +580,10 @@
             }
         }
 
-        init3D();
+        // Initialize 3D when window loads so dimensions are 100% correct
+        window.addEventListener('load', () => {
+            init3D();
+        });
     </script>
 </body>
 </html>
