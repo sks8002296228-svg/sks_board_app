@@ -185,6 +185,7 @@
             }
         }
 
+        // Fixed interaction toggle so 3D objects receive touch/mouse events properly
         function setInteraction(type) {
             interactionMode = type;
             if (type === 'draw') {
@@ -196,7 +197,7 @@
                 document.getElementById('mode-3d').classList.add('active');
                 document.getElementById('mode-draw').classList.remove('active');
                 canvas3D.classList.add('interactive');
-                canvas.style.pointerEvents = 'none';
+                canvas.style.pointerEvents = 'none'; // Allows 3D canvas & OrbitControls to receive touch/mouse
             }
         }
 
@@ -410,7 +411,6 @@
                     laserCtx.fillStyle = currentColor;
                     laserCtx.globalAlpha = Math.max(0, life);
                     
-                    // Blinking effect
                     if (Math.floor(age / 100) % 2 === 0) {
                         laserCtx.shadowBlur = 15;
                         laserCtx.shadowColor = currentColor;
@@ -474,7 +474,6 @@
             }
         }
 
-        // Mouse and Touch Event Listeners for Board
         container.addEventListener('mousedown', startPosition);
         container.addEventListener('mouseup', finishedPosition);
         container.addEventListener('mousemove', draw);
