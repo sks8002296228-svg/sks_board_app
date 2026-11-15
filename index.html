@@ -15,6 +15,7 @@
 
         canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; touch-action: none; }
         #whiteboard { z-index: 5; pointer-events: auto; }
+        #laser-canvas { z-index: 7; pointer-events: none; }
         #canvas-3d { z-index: 10; pointer-events: none; }
         #canvas-3d.interactive { pointer-events: auto; }
 
@@ -65,6 +66,7 @@
 
     <div id="board-container" style="background: #111;">
         <canvas id="whiteboard"></canvas>
+        <canvas id="laser-canvas"></canvas>
         <canvas id="canvas-3d"></canvas>
     </div>
 
@@ -156,6 +158,8 @@
     <script>
         const canvas = document.getElementById('whiteboard');
         const ctx = canvas.getContext('2d');
+        const laserCanvas = document.getElementById('laser-canvas');
+        const laserCtx = laserCanvas.getContext('2d');
         const container = document.getElementById('board-container');
         const toolbar = document.getElementById('toolbar');
         const moreMenu = document.getElementById('more-menu');
@@ -171,7 +175,7 @@
         
         let undoStack = [];
         let redoStack = [];
-        let laserDots = [];
+        let laserPoints = [];
 
         function toggleMoreMenu() {
             if (moreMenu.style.display === 'flex') {
@@ -210,6 +214,7 @@
             if(canvas.width > 0 && canvas.height > 0) tempCtx.drawImage(canvas, 0, 0);
 
             canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+            laserCanvas.width = window.innerWidth; laserCanvas.height = window.innerHeight;
             if(tempCanvas.width > 0 && tempCanvas.height > 0) ctx.drawImage(tempCanvas, 0, 0);
 
             if (window.renderer) {
@@ -310,9 +315,11 @@
             if (mode !== 'laser') saveState();
             const pos = getMousePos(e);
             startX = pos.x; startY = pos.y;
-            ctx.beginPath();
-            ctx.moveTo(startX, startY);
-            if (mode !== 'laser') snapshot = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            if (mode !== 'laser') {
+                ctx.beginPath();
+                ctx.moveTo(startX, startY);
+                snapshot = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            }
         }
 
         function finishedPosition() {
@@ -327,11 +334,7 @@
             const pos = getMousePos(e);
 
             if (mode === 'laser') {
-                const dot = { x: pos.x, y: pos.y, alpha: 1.0, color: currentColor, size: currentSize * 2 };
-                laserDots.push(dot);
-                setTimeout(() => {
-                    laserDots = laserDots.filter(d => d !== dot);
-                }, 500); 
+                laserPoints.push({ x: pos.x, y: pos.y, time: Date.now() });
                 return;
             }
 
@@ -390,18 +393,30 @@
             ctx.stroke();
         }
 
+        // Dedicated Laser Rendering Loop with Blinking & Fade-Out on Overlay Canvas
         function renderLaser() {
-            if (mode === 'laser' && laserDots.length > 0) {
-                laserDots.forEach(dot => {
-                    ctx.save();
-                    ctx.beginPath();
-                    ctx.arc(dot.x, dot.y, dot.size, 0, 2 * Math.PI);
-                    ctx.fillStyle = dot.color;
-                    ctx.globalAlpha = dot.alpha;
-                    ctx.shadowBlur = 15;
-                    ctx.shadowColor = dot.color;
-                    ctx.fill();
-                    ctx.restore();
+            laserCtx.clearRect(0, 0, laserCanvas.width, laserCanvas.height);
+            if (mode === 'laser') {
+                const now = Date.now();
+                laserPoints = laserPoints.filter(p => now - p.time < 500); // 500ms lifetime
+
+                laserPoints.forEach((p) => {
+                    const age = now - p.time;
+                    const life = 1 - age / 500;
+
+                    laserCtx.save();
+                    laserCtx.beginPath();
+                    laserCtx.arc(p.x, p.y, currentSize * 2, 0, 2 * Math.PI);
+                    laserCtx.fillStyle = currentColor;
+                    laserCtx.globalAlpha = Math.max(0, life);
+                    
+                    // Blinking effect
+                    if (Math.floor(age / 100) % 2 === 0) {
+                        laserCtx.shadowBlur = 15;
+                        laserCtx.shadowColor = currentColor;
+                        laserCtx.fill();
+                    }
+                    laserCtx.restore();
                 });
             }
             requestAnimationFrame(renderLaser);
@@ -459,12 +474,13 @@
             }
         }
 
-        canvas.addEventListener('mousedown', startPosition);
-        canvas.addEventListener('mouseup', finishedPosition);
-        canvas.addEventListener('mousemove', draw);
-        canvas.addEventListener('touchstart', startPosition, { passive: false });
-        canvas.addEventListener('touchend', finishedPosition);
-        canvas.addEventListener('touchmove', draw, { passive: false });
+        // Mouse and Touch Event Listeners for Board
+        container.addEventListener('mousedown', startPosition);
+        container.addEventListener('mouseup', finishedPosition);
+        container.addEventListener('mousemove', draw);
+        container.addEventListener('touchstart', startPosition, { passive: false });
+        container.addEventListener('touchend', finishedPosition);
+        container.addEventListener('touchmove', draw, { passive: false });
 
         var renderer, camera;
 
