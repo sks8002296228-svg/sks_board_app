@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SKS Board - Live Teaching App with 3D Shapes</title>
+    <title>SKS Board - Ultimate Teaching App</title>
     <!-- Three.js for 3D Shapes -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
@@ -41,13 +41,25 @@
             touch-action: none;
         }
 
-        #canvas-3d {
-            pointer-events: none; /* Let clicks pass through unless interacting with 3D */
-            z-index: 10;
+        #canvas-3d { pointer-events: none; z-index: 10; }
+        #whiteboard { z-index: 5; }
+
+        /* Webcam Floating Box */
+        #webcam-container {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 200px;
+            height: 150px;
+            background: #000;
+            border: 2px solid #00adb5;
+            border-radius: 8px;
+            overflow: hidden;
+            display: none;
+            z-index: 200;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
         }
-        #whiteboard {
-            z-index: 5;
-        }
+        #webcam-video { width: 100%; height: 100%; object-fit: cover; }
 
         /* Toolbar UI */
         #toolbar {
@@ -55,45 +67,48 @@
             bottom: 20px;
             left: 50%;
             transform: translateX(-50%);
-            background: rgba(30, 30, 30, 0.9);
+            background: rgba(30, 30, 30, 0.95);
             backdrop-filter: blur(10px);
-            padding: 10px 15px;
+            padding: 8px 12px;
             border-radius: 12px;
             display: flex;
             align-items: center;
-            gap: 10px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
-            z-index: 100;
+            gap: 8px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+            z-index: 300;
             flex-wrap: wrap;
             justify-content: center;
-            max-width: 95vw;
+            max-width: 98vw;
         }
 
         .tool-group {
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 5px;
             border-right: 1px solid rgba(255,255,255,0.2);
-            padding-right: 10px;
+            padding-right: 8px;
         }
 
-        button, select {
+        button, select, label {
             background: #2a2a2a;
             color: white;
             border: 1px solid #444;
-            padding: 6px 12px;
+            padding: 6px 10px;
             border-radius: 6px;
             cursor: pointer;
-            font-size: 13px;
+            font-size: 12px;
             transition: 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
         }
 
-        button:hover, select:hover { background: #3a3a3a; }
+        button:hover, select:hover, label:hover { background: #3a3a3a; }
         button.active { background: #00adb5; border-color: #00adb5; font-weight: bold; }
 
         .preset-color {
-            width: 22px;
-            height: 22px;
+            width: 20px;
+            height: 20px;
             border-radius: 50%;
             cursor: pointer;
             border: 2px solid #fff;
@@ -104,18 +119,22 @@
 <body>
 
     <div id="board-container" class="bg-dark">
-        <!-- 2D Drawing Canvas -->
         <canvas id="whiteboard"></canvas>
-        <!-- 3D Three.js Canvas -->
         <canvas id="canvas-3d"></canvas>
     </div>
 
+    <!-- Webcam View -->
+    <div id="webcam-container">
+        <video id="webcam-video" autoplay playsinline></video>
+    </div>
+
+    <!-- Toolbar -->
     <div id="toolbar">
         <!-- Tools Mode -->
         <div class="tool-group">
             <button id="btn-pen" class="active" onclick="setMode('pen')">🖊️ Pen</button>
-            <button id="btn-highlighter" onclick="setMode('highlighter')">🖍️ Highlight</button>
-            <button id="btn-eraser" onclick="setMode('eraser')">🧹 Eraser</button>
+            <button id="btn-highlighter" onclick="setMode('highlighter')">🖍️ High</button>
+            <button id="btn-eraser" onclick="setMode('eraser')">🧹 Erase</button>
         </div>
 
         <!-- Colors -->
@@ -127,43 +146,56 @@
             <div class="preset-color" style="background: #4caf50;" onclick="setColor('#4caf50')"></div>
         </div>
 
-        <!-- 2D Shapes -->
+        <!-- Undo / Redo / Trash -->
         <div class="tool-group">
-            <button onclick="setShape('free')" id="shape-free" class="active">Free</button>
-            <button onclick="setShape('line')" id="shape-line">Line</button>
-            <button onclick="setShape('rect')" id="shape-rect">Rect</button>
-            <button onclick="setShape('circle')" id="shape-circle">Circle</button>
-            <button onclick="setShape('arrow')" id="shape-arrow">Arrow</button>
+            <button onclick="undoCanvas()" title="Undo">↩️</button>
+            <button onclick="redoCanvas()" title="Redo">↪️</button>
+            <button onclick="clearCanvas()" style="background: #d9534f;" title="Trash / Clear">🗑️</button>
         </div>
 
-        <!-- 3D Shapes (New Feature) -->
+        <!-- Slide Navigation -->
+        <div class="tool-group">
+            <button onclick="prevSlide()">◀</button>
+            <span id="slide-indicator" style="font-size: 12px; color: #aaa;">1/1</span>
+            <button onclick="nextSlide()">▶</button>
+            <button onclick="addSlide()">+ Slide</button>
+        </div>
+
+        <!-- PDF & Webcam & Save -->
+        <div class="tool-group">
+            <label for="pdf-upload">📄 PDF</label>
+            <input type="file" id="pdf-upload" accept="application/pdf" style="display: none;" onchange="handlePDF(event)">
+            
+            <button id="btn-cam" onclick="toggleWebcam()">📹 Cam</button>
+        </div>
+
+        <!-- 3D Shapes -->
         <div class="tool-group">
             <button onclick="spawn3D('cube')">🧊 Cube</button>
             <button onclick="spawn3D('sphere')">⚽ Sphere</button>
-            <button onclick="spawn3D('cylinder')">🥫 Cylinder</button>
+            <button onclick="spawn3D('cylinder')">🥫 Cyl</button>
             <button onclick="clear3D()" style="background: #c9302c;">Clear 3D</button>
         </div>
 
         <!-- Backgrounds -->
         <div class="tool-group">
             <select id="bg-selector" onchange="changeBackground(this.value)">
-                <option value="bg-dark">Dark BG</option>
-                <option value="bg-white">White BG</option>
-                <option value="bg-green">Chalkboard</option>
-                <option value="bg-grid">Grid / Graph</option>
-                <option value="bg-lined">Lined Notes</option>
+                <option value="bg-dark">Dark</option>
+                <option value="bg-white">White</option>
+                <option value="bg-green">Chalk</option>
+                <option value="bg-grid">Grid</option>
+                <option value="bg-lined">Lined</option>
             </select>
         </div>
 
-        <!-- Actions -->
+        <!-- Save Action -->
         <div class="tool-group" style="border: none;">
-            <button onclick="clearCanvas()" style="background: #d9534f; border-color: #d9534f;">Clear 2D</button>
-            <button onclick="saveCanvas()" style="background: #5cb85c; border-color: #5cb85c;">Save</button>
+            <button onclick="saveCanvas()" style="background: #5cb85c;">💾 Save</button>
         </div>
     </div>
 
     <script>
-        // --- 2D WHITEBOARD LOGIC ---
+        // --- WHITEBOARD & UNDO/REDO LOGIC ---
         const canvas = document.getElementById('whiteboard');
         const ctx = canvas.getContext('2d');
         const container = document.getElementById('board-container');
@@ -172,9 +204,15 @@
         let mode = 'pen'; 
         let currentColor = '#ffffff';
         let currentSize = 3;
-        let currentShape = 'free';
         let startX, startY;
-        let snapshot;
+        
+        let undoStack = [];
+        let redoStack = [];
+
+        function saveState() {
+            undoStack.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
+            redoStack = []; // Clear redo on new action
+        }
 
         function resizeCanvas() {
             const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -205,32 +243,25 @@
 
         function setColor(color) { currentColor = color; }
 
-        function setShape(shape) {
-            currentShape = shape;
-            document.querySelectorAll('.tool-group button').forEach(b => {
-                if(b.id.startsWith('shape-')) b.classList.remove('active');
-            });
-            document.getElementById('shape-' + shape).classList.add('active');
-        }
-
         function changeBackground(bgClass) {
             container.className = '';
             container.classList.add(bgClass);
         }
 
         function startPosition(e) {
-            if (e.target.id === 'canvas-3d') return; // Don't draw if interacting with 3D
+            if (e.target.id === 'canvas-3d') return;
             painting = true;
+            saveState();
             const rect = canvas.getBoundingClientRect();
-            startX = e.clientX || e.touches[0].clientX;
-            startY = e.clientY || e.touches[0].clientY;
+            startX = (e.clientX || e.touches[0].clientX) - rect.left;
+            startY = (e.clientY || e.touches[0].clientY) - rect.top;
             
             ctx.beginPath();
-            ctx.moveTo(startX - rect.left, startY - rect.top);
-            snapshot = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            ctx.moveTo(startX, startY);
         }
 
         function finishedPosition() {
+            if (!painting) return;
             painting = false;
             ctx.beginPath();
         }
@@ -240,12 +271,6 @@
             const rect = canvas.getBoundingClientRect();
             const x = (e.clientX || e.touches[0].clientX) - rect.left;
             const y = (e.clientY || e.touches[0].clientY) - rect.top;
-
-            if (currentShape !== 'free' && mode !== 'eraser') {
-                ctx.putImageData(snapshot, 0, 0);
-                drawShape(x, y);
-                return;
-            }
 
             ctx.lineWidth = currentSize;
             ctx.lineCap = 'round';
@@ -268,31 +293,65 @@
             ctx.moveTo(x, y);
         }
 
-        function drawShape(x, y) {
-            ctx.strokeStyle = currentColor;
-            ctx.lineWidth = currentSize;
-            ctx.globalAlpha = (mode === 'highlighter') ? 0.3 : 1.0;
-
-            let sx = startX - canvas.getBoundingClientRect().left;
-            let sy = startY - canvas.getBoundingClientRect().top;
-
-            if (currentShape === 'line') {
-                ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(x, y); ctx.stroke();
-            } else if (currentShape === 'rect') {
-                ctx.strokeRect(sx, sy, x - sx, y - sy);
-            } else if (currentShape === 'circle') {
-                let radius = Math.sqrt(Math.pow(x - sx, 2) + Math.pow(y - sy, 2));
-                ctx.beginPath(); ctx.arc(sx, sy, radius, 0, 2 * Math.PI); ctx.stroke();
+        function undoCanvas() {
+            if (undoStack.length > 0) {
+                redoStack.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
+                let prevState = undoStack.pop();
+                ctx.putImageData(prevState, 0, 0);
             }
         }
 
-        function clearCanvas() { ctx.clearRect(0, 0, canvas.width, canvas.height); }
+        function redoCanvas() {
+            if (redoStack.length > 0) {
+                undoStack.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
+                let nextState = redoStack.pop();
+                ctx.putImageData(nextState, 0, 0);
+            }
+        }
+
+        function clearCanvas() {
+            saveState();
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
 
         function saveCanvas() {
             const link = document.createElement('a');
             link.download = 'sks-board-notes.png';
             link.href = canvas.toDataURL();
             link.click();
+        }
+
+        // Slide placeholder functions
+        let currentSlideNum = 1;
+        function nextSlide() { currentSlideNum++; document.getElementById('slide-indicator').innerText = currentSlideNum + '/1'; clearCanvas(); }
+        function prevSlide() { if(currentSlideNum > 1) currentSlideNum--; document.getElementById('slide-indicator').innerText = currentSlideNum + '/1'; }
+        function addSlide() { nextSlide(); }
+
+        // PDF Handler placeholder
+        function handlePDF(event) {
+            alert('PDF Uploaded! (Feature ready for rendering pages)');
+        }
+
+        // Webcam Toggle
+        let webcamActive = false;
+        function toggleWebcam() {
+            const box = document.getElementById('webcam-container');
+            const video = document.getElementById('webcam-video');
+            if (!webcamActive) {
+                navigator.mediaDevices.getUserMedia({ video: true })
+                .then(stream => {
+                    video.srcObject = stream;
+                    box.style.display = 'block';
+                    webcamActive = true;
+                    document.getElementById('btn-cam').classList.add('active');
+                }).catch(err => alert('Webcam permission denied or unavailable.'));
+            } else {
+                let stream = video.srcObject;
+                if(stream) stream.getTracks().forEach(track => track.stop());
+                box.style.display = 'none';
+                webcamActive = false;
+                document.getElementById('btn-cam').classList.remove('active');
+            }
         }
 
         canvas.addEventListener('mousedown', startPosition);
@@ -312,7 +371,6 @@
             renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('canvas-3d'), alpha: true, antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
 
-            // Lighting
             const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
             scene.add(ambientLight);
             const pointLight = new THREE.PointLight(0xffffff, 1);
@@ -325,37 +383,23 @@
 
         function spawn3D(type) {
             if (currentMesh) scene.remove(currentMesh);
-
             let geometry;
             if (type === 'cube') geometry = new THREE.BoxGeometry(2, 2, 2);
             else if (type === 'sphere') geometry = new THREE.SphereGeometry(1.5, 32, 32);
             else if (type === 'cylinder') geometry = new THREE.CylinderGeometry(1, 1, 3, 32);
 
-            // Wireframe + Solid material for teaching look
-            const material = new THREE.MeshStandardMaterial({ 
-                color: 0x00adb5, 
-                roughness: 0.3, 
-                metalness: 0.2,
-                wireframe: false 
-            });
-
+            const material = new THREE.MeshStandardMaterial({ color: 0x00adb5, roughness: 0.3, metalness: 0.2 });
             currentMesh = new THREE.Mesh(geometry, material);
             scene.add(currentMesh);
         }
 
         function clear3D() {
-            if (currentMesh) {
-                scene.remove(currentMesh);
-                currentMesh = null;
-            }
+            if (currentMesh) { scene.remove(currentMesh); currentMesh = null; }
         }
 
         function animate3D() {
             requestAnimationFrame(animate3D);
-            if (currentMesh) {
-                currentMesh.rotation.x += 0.01;
-                currentMesh.rotation.y += 0.015;
-            }
+            if (currentMesh) { currentMesh.rotation.x += 0.01; currentMesh.rotation.y += 0.015; }
             renderer.render(scene, camera);
         }
 
