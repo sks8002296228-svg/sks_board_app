@@ -135,9 +135,9 @@
         <!-- Row 4: 3D Objects & Controls -->
         <div class="menu-row">
             <span style="color:#aaa; font-size:11px;">3D:</span>
-            <button onclick="spawn3D('cube')">Cube</button>
-            <button onclick="spawn3D('sphere')">Sphere</button>
-            <button onclick="spawn3D('cylinder')">Cyl</button>
+            <button onclick="event.stopPropagation(); spawn3D('cube'); toggleMoreMenu();">Cube</button>
+            <button onclick="event.stopPropagation(); spawn3D('sphere'); toggleMoreMenu();">Sphere</button>
+            <button onclick="event.stopPropagation(); spawn3D('cylinder'); toggleMoreMenu();">Cyl</button>
             <button id="btn-trans" onclick="toggleTransparency()">Trans</button>
             <button id="btn-rot" class="active" onclick="toggleRotation()">Rot</button>
             <button onclick="clear3D()" style="background: #c9302c;">Clear 3D</button>
@@ -277,7 +277,7 @@
         function setColor(hexColor) { 
             currentColor = hexColor; 
             if (currentMesh && currentMesh.material) {
-                currentMesh.material.color.setHex(hexColor.replace('#', '0x'));
+                currentMesh.material.color.set(new THREE.Color(hexColor));
             }
         }
 
@@ -514,7 +514,7 @@
 
             const geometry = createMeshGeometry(type);
             const material = new THREE.MeshStandardMaterial({ 
-                color: currentColor, 
+                color: new THREE.Color(currentColor), 
                 roughness: 0.3, 
                 metalness: 0.2,
                 transparent: isTransparent,
