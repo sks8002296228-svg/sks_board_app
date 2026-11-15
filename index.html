@@ -11,11 +11,12 @@
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body, html { width: 100%; height: 100%; overflow: hidden; background: #111; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         
-        #board-container { position: relative; width: 100vw; height: 100vh; cursor: crosshair; }
+        #board-container { position: relative; width: 100vw; height: 100vh; }
 
         canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; touch-action: none; }
-        #canvas-3d { z-index: 10; }
-        #whiteboard { z-index: 5; }
+        #whiteboard { z-index: 5; pointer-events: auto; }
+        #canvas-3d { z-index: 10; pointer-events: none; } /* Default non-blocking for smooth drawing */
+        #canvas-3d.interactive { pointer-events: auto; } /* Enabled during 3D orbit mode */
 
         /* Webcam Floating Box */
         #webcam-container {
@@ -30,8 +31,9 @@
             position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
             background: rgba(30, 30, 30, 0.95); backdrop-filter: blur(10px);
             padding: 8px 12px; border-radius: 12px; display: flex; align-items: center; gap: 8px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.6); z-index: 300; flex-wrap: wrap; justify-content: center; max-width: 95vw;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.6); z-index: 300; flex-wrap: nowrap; justify-content: center;
             cursor: move; touch-action: none; border: 1px solid rgba(255,255,255,0.1);
+            white-space: nowrap;
         }
 
         .tool-group { display: flex; align-items: center; gap: 6px; border-right: 1px solid rgba(255,255,255,0.2); padding-right: 8px; cursor: default; }
@@ -57,6 +59,12 @@
     <div id="webcam-container"><video id="webcam-video" autoplay playsinline></video></div>
 
     <div id="toolbar">
+        <!-- Interaction Mode (Draw vs 3D Orbit) -->
+        <div class="tool-group">
+            <button id="mode-draw" class="active" onclick="setInteraction('draw')">✍️ Draw</button>
+            <button id="mode-3d" onclick="setInteraction('3d')">🧊 3D Orbit</button>
+        </div>
+
         <!-- Drawing Modes -->
         <div class="tool-group">
             <button id="btn-pen" class="active" onclick="setMode('pen')">🖊️ Pen</button>
@@ -68,7 +76,7 @@
         <div class="tool-group">
             <label style="font-size: 11px;">Size:</label>
             <input type="range" id="pen-size" min="1" max="50" value="5" oninput="setBrushSize(this.value)">
-            <span id="size-val" style="color: #fff; font-size: 11px; width: 25px;">5</span>
+            <span id="size-val" style="color: #fff; font-size: 11px; width: 20px;">5</span>
         </div>
 
         <!-- Color Presets -->
@@ -93,7 +101,7 @@
         <div class="tool-group">
             <button onclick="undoCanvas()" title="Undo">↩️</button>
             <button onclick="redoCanvas()" title="Redo">↪️</button>
-            <button onclick="clearCanvas()" style="background: #d9534f;" title="Trash / Clear">🗑️</button>
+            <button onclick="clearCanvas()" style="background: #d9534f;" title="Clear">🗑️</button>
         </div>
 
         <!-- Slide Navigation -->
@@ -127,8 +135,8 @@
                 <option value="dark">Dark BG</option>
                 <option value="white">White BG</option>
                 <option value="green">Chalkboard</option>
-                <option value="grid">Grid / Graph</option>
-                <option value="lined">Lined Notes</option>
+                <option value="grid">Grid</option>
+                <option value="lined">Lined</option>
             </select>
         </div>
 
@@ -139,14 +147,15 @@
     </div>
 
     <script>
-        // --- 2D WHITEBOARD & HISTORY LOGIC ---
         const canvas = document.getElementById('whiteboard');
         const ctx = canvas.getContext('2d');
         const container = document.getElementById('board-container');
         const toolbar = document.getElementById('toolbar');
+        const canvas3D = document.getElementById('canvas-3d');
 
         let painting = false;
         let mode = 'pen'; 
+        let interactionMode = 'draw';
         let currentColor = '#00adb5'; 
         let currentSize = 5;
         let currentShape = 'free';
@@ -154,6 +163,21 @@
         
         let undoStack = [];
         let redoStack = [];
+
+        function setInteraction(type) {
+            interactionMode = type;
+            if (type === 'draw') {
+                document.getElementById('mode-draw').classList.add('active');
+                document.getElementById('mode-3d').classList.remove('active');
+                canvas3D.classList.remove('interactive');
+                canvas.style.pointerEvents = 'auto';
+            } else {
+                document.getElementById('mode-3d').classList.add('active');
+                document.getElementById('mode-draw').classList.remove('active');
+                canvas3D.classList.add('interactive');
+                canvas.style.pointerEvents = 'none';
+            }
+        }
 
         function saveState() {
             if (canvas.width > 0 && canvas.height > 0) {
@@ -213,6 +237,7 @@
         document.addEventListener('touchend', () => { isDragging = false; });
 
         function setMode(newMode) {
+            setInteraction('draw');
             mode = newMode;
             document.querySelectorAll('#toolbar button').forEach(b => {
                 if(b.id.startsWith('btn-pen') || b.id.startsWith('btn-highlighter') || b.id.startsWith('btn-eraser')) b.classList.remove('active');
@@ -230,6 +255,7 @@
         function setColor(color) { currentColor = color; }
 
         function setShape(shape) {
+            setInteraction('draw');
             currentShape = shape;
             document.querySelectorAll('.tool-group button').forEach(b => {
                 if(b.id.startsWith('shape-')) b.classList.remove('active');
@@ -260,7 +286,7 @@
         }
 
         function startPosition(e) {
-            if (e.target.id === 'canvas-3d') return;
+            if (interactionMode !== 'draw') return;
             painting = true;
             saveState();
             const pos = getMousePos(e);
@@ -277,7 +303,7 @@
         }
 
         function draw(e) {
-            if (!painting) return;
+            if (!painting || interactionMode !== 'draw') return;
             e.preventDefault();
             const pos = getMousePos(e);
 
@@ -292,7 +318,7 @@
             ctx.lineJoin = 'round';
 
             if (mode === 'eraser') {
-                ctx.strokeStyle = container.style.background.includes('rgb(255, 255, 255)') || container.style.background === '#ffffff' ? '#ffffff' : '#111111';
+                ctx.strokeStyle = container.style.background.includes('rgb(255, 255, 255)') || container.style.background === '#ffffff' ? '#ffffff' : '#111';
                 ctx.globalAlpha = 1.0;
                 ctx.lineWidth = currentSize * 3;
             } else if (mode === 'highlighter') {
@@ -361,7 +387,6 @@
             link.click();
         }
 
-        // Slide Navigation Placeholder Logic
         let currentSlideNum = 1;
         function nextSlide() { currentSlideNum++; document.getElementById('slide-indicator').innerText = currentSlideNum + '/1'; clearCanvas(); }
         function prevSlide() { if(currentSlideNum > 1) currentSlideNum--; document.getElementById('slide-indicator').innerText = currentSlideNum + '/1'; }
@@ -369,7 +394,6 @@
 
         function handlePDF(event) { alert('PDF Uploaded successfully!'); }
 
-        // Webcam Toggling Logic
         let webcamActive = false;
         function toggleWebcam() {
             const box = document.getElementById('webcam-container');
@@ -379,7 +403,7 @@
                 .then(stream => {
                     video.srcObject = stream; box.style.display = 'block'; webcamActive = true;
                     document.getElementById('btn-cam').classList.add('active');
-                }).catch(err => alert('Webcam permission denied or device unavailable.'));
+                }).catch(err => alert('Webcam permission denied.'));
             } else {
                 let stream = video.srcObject;
                 if(stream) stream.getTracks().forEach(track => track.stop());
@@ -400,7 +424,6 @@
         let scene, camera, renderer, currentMesh, controls;
         let rotate3D = true;
         let isTransparent = false;
-        let currentShapeType = 'cube';
 
         function init3D() {
             scene = new THREE.Scene();
@@ -426,7 +449,6 @@
         }
 
         function spawn3D(type) {
-            currentShapeType = type;
             if (currentMesh) scene.remove(currentMesh);
 
             const geometry = createMeshGeometry(type);
@@ -435,8 +457,7 @@
                 roughness: 0.3, 
                 metalness: 0.2,
                 transparent: isTransparent,
-                opacity: isTransparent ? 0.6 : 1.0,
-                wireframe: false
+                opacity: isTransparent ? 0.6 : 1.0
             });
 
             currentMesh = new THREE.Mesh(geometry, material);
