@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>SKS Board - Live Teaching App</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
+        body { background: #141414; overflow: hidden; height: 100vh; width: 100vw; }
+
+        #board-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background: #141414;
+        }
+        canvas {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            touch-action: none;
+        }
+        #bg-canvas { z-index: 1; }
+        #draw-canvas { z-index: 2; }
+        #temp-canvas { z-index: 3; cursor: crosshair; } 
+
+        /* BRAND WATERMARK */
+        .brand-logo-container {
+            position: fixed;
+            top: 15px;
+            left: 20px;
+            z-index: 25;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            pointer-events: none;
+            opacity: 0.9;
+        }
+        .brand-text {
+            display: flex;
+            flex-direction: column;
+            color: #ffffff;
+            line-height: 1.1;
+        }
+        .brand-title {
+            font-weight: 800;
+            font-size: 18px;
+            letter-spacing: 0.5px;
+        }
+        .brand-title span {
+            color: #00ffcc;
+        }
+        .brand-sub {
+            font-size: 9px;
+            color: #aaa;
+            letter-spacing: 1.5px;
+            font-weight: 600;
+        }
+
+        /* Draggable Facecam Overlay */
+        #facecam-box {
+            position: fixed;
+            bottom: 85px;
+            right: 20px;
+            width: 230px;
+            height: 160px;
+            border-radius: 14px;
+            overflow: hidden;
+            border: 3px solid #00ffcc;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.8);
+            z-index: 20;
+            display: none;
+            cursor: move;
+            background: #000;
+        }
+        #facecam-video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1);
+        }
+        #cam-size-btn {
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            background: rgba(0, 0, 0, 0.65);
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            padding: 3px 7px;
+            font-size: 11px;
+            cursor: pointer;
+        }
+
+        /* Floating Toolbar */
+        .toolbar {
+            position: fixed;
+            bottom: 12px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 15;
+            background: rgba(25, 25, 25, 0.96);
+            border: 1px solid #383838;
+            padding: 7px 12px;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.7);
+            flex-wrap: wrap;
+            justify-content: center;
+            max-width: 98vw;
+        }
+        button, label.btn, select {
+            background: #2b2b2b;
+            color: #fff;
+            border: 1px solid #444;
+            padding: 5px 9px;
+            border-radius: 7px;
+            cursor: pointer;
+            font-size: 12.5px;
+            transition: 0.15s;
+            user-select: none;
+        }
+        button:hover, label.btn:hover, select:hover { background: #3d3d3d; }
+        button.active { background: #00a884; border-color: #00ffcc; font-weight: bold; }
+        button.laser-active { background: #d90429; border-color: #ff4d6d; font-weight: bold; }
+        input[type="color"] { width: 28px; height: 28px; border: none; background: none; cursor: pointer; }
+        input[type="range"] { width: 60px; cursor: pointer; }
+        .divider { width: 1px; height: 22px; background: #444; margin: 0 2px; }
+        #page-indicator { color: #00ffcc; font-weight: bold; font-size: 13px; min-width: 48px; text-align: center; }
+        input[type="file"] { display: none; }
+    </style>
+</head>
+<body>
+
+<div class="brand-logo-container">
+    <div class="brand-text">
+        <div class="brand-title">SKS <span>BOARD</span></div>
+        <div class="brand-sub">SUDHANSHU SHARMA</div>
+    </div>
+</div>
+
+<div id="board-container">
+    <canvas id="bg-canvas"></canvas>
+    <canvas id="draw-canvas"></canvas>
+    <canvas id="temp-canvas"></canvas>
+</div>
+
+<!-- Facecam Overlay -->
+<div id="facecam-box" title="Drag karke kahin bhi move karein">
+    <video id="facecam-video" autoplay playsinline muted></video>
+    <button id="cam-size-btn" onclick="toggleCamShape()">⚪/▭</button>
+</div>
+
+<div class="toolbar">
+    <input type="color" id="colorPicker" value="#00ffcc" title="Color">
+    <input type="range" id="sizeSlider" min="1" max="25" value="3" title="Size">
+
+    <button id="penBtn" class="active" onclick="setTool('pen')">✏️ Pen</button>
+    <button id="highBtn" onclick="setTool('highlighter')">🖍️ High</button>
+    <button id="laserBtn" onclick="setTool('laser')">🔴 Laser</button>
+    <button id="eraserBtn" onclick="setTool('eraser')">🧽 Eraser</button>
+
+    <div class="divider"></div>
+
+    <select id="shapeSelect" onchange="selectShape(this.value)" title="Shapes">
+        <option value="">📐 Shapes</option>
+        <option value="line">📏 Line</option>
+        <option value="arrow">➡️ Arrow</option>
+        <option value="rect">⬜ Rectangle</option>
+        <option value="circle">⭕ Circle</option>
+    </select>
+
+    <select id="bgThemeSelect" onchange="changeBgTheme(this.value)" title="Board Background">
+        <option value="dark">🌑 Dark</option>
+        <option value="grid">🌐 Grid (Graph)</option>
+        <option value="ruled">📝 Ruled</option>
+        <option value="white">☀️ White</option>
+    </select>
+
+    <div class="divider"></div>
+
+    <button onclick="undo()" title="Undo">↩️</button>
+    <button onclick="redo()" title="Redo">↪️</button>
+    <button onclick="clearCurrentPage()" title="Clear Page">🗑️</button>
+
+    <div class="divider"></div>
+
+    <button onclick="prevPage()">◀</button>
+    <span id="page-indicator">1 / 1</span>
+    <button onclick="nextPage()">▶</button>
+    <button onclick="addNewPage()">➕</button>
+
+    <div class="divider"></div>
+
+    <label class="btn" for="fileUpload">📂 PDF</label>
+    <input type="file" id="fileUpload" accept="application/pdf,image/*" onchange="handleFileUpload(event)">
+    <button onclick="exportToPDF()" style="background:#1e6091;">💾 Save</button>
+    <button id="camBtn" onclick="toggleFacecam()">📷 Cam</button>
+</div>
+
+<script>
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+    const bgCanvas = document.getElementById("bg-canvas");
+    const bgCtx = bgCanvas.getContext("2d");
+    const drawCanvas = document.getElementById("draw-canvas");
+    const drawCtx = drawCanvas.getContext("2d");
+    const tempCanvas = document.getElementById("temp-canvas");
+    const tempCtx = tempCanvas.getContext("2d");
+
+    function setCanvasDimensions() {
+        bgCanvas.width = drawCanvas.width = tempCanvas.width = window.innerWidth;
+        bgCanvas.height = drawCanvas.height = tempCanvas.height = window.innerHeight;
+    }
+    setCanvasDimensions();
+
+    window.addEventListener("resize", () => {
+        const tempDraw = drawCanvas.toDataURL();
+        setCanvasDimensions();
+        renderBackground();
+        restoreImage(drawCtx, tempDraw);
+    });
+
+    let pages = [{ bgData: null, drawData: null, history: [], redoStack: [] }];
+    let currentPage = 0;
+    let currentTheme = "dark";
+    let tool = "pen";
+    let isDrawing = false;
+    let startX = 0, startY = 0, lastX = 0, lastY = 0;
+    let laserPoints = [];
+
+    function setTool(selected) {
+        tool = selected;
+        document.getElementById("shapeSelect").value = "";
+        updateToolButtons();
+    }
+
+    function selectShape(shape) {
+        if (!shape) return;
+        tool = shape;
+        updateToolButtons();
+    }
+
+    function updateToolButtons() {
+        document.getElementById("penBtn").classList.toggle("active", tool === "pen");
+        document.getElementById("highBtn").classList.toggle("active", tool === "highlighter");
+        document.getElementById("eraserBtn").classList.toggle("active", tool === "eraser");
+        document.getElementById("laserBtn").classList.toggle("laser-active", tool === "laser");
+    }
+
+    function changeBgTheme(theme) {
+        currentTheme = theme;
+        document.getElementById("bgThemeSelect").value = theme;
+        renderBackground();
+    }
+
+    function drawThemePattern(ctx, w, h, theme) {
+        ctx.fillStyle = theme === "white" ? "#f8f9fa" : "#141414";
+        ctx.fillRect(0, 0, w, h);
+
+        if (theme === "grid") {
+            ctx.strokeStyle = "rgba(0, 255, 204, 0.14)";
+            ctx.lineWidth = 1;
+            const step = 35;
+            for (let x = 0; x < w; x += step) {
+                ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+            }
+            for (let y = 0; y < h; y += step) {
+                ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+            }
+        } else if (theme === "ruled") {
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.15)";
+            ctx.lineWidth = 1;
+            const step = 42;
+            for (let y = step; y < h; y += step) {
+                ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+            }
+        }
+    }
+
+    function renderBackground() {
+        drawThemePattern(bgCtx, bgCanvas.width, bgCanvas.height, currentTheme);
+        const page = pages[currentPage];
+        if (page.bgData) {
+            const img = new Image();
+            img.onload = () => bgCtx.drawImage(img, 0, 0, bgCanvas.width, bgCanvas.height);
+            img.src = page.bgData;
+        }
+    }
+    renderBackground();
+
+    function saveHistory() {
+        const page = pages[currentPage];
+        page.history.push(drawCanvas.toDataURL());
+        if (page.history.length > 25) page.history.shift();
+        page.redoStack = [];
+        page.drawData = drawCanvas.toDataURL();
+    }
+
+    function restoreImage(ctx, dataUrl) {
+        ctx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+        if (!dataUrl) return;
+        const img = new Image();
+        img.onload = () => ctx.drawImage(img, 0, 0, drawCanvas.width, drawCanvas.height);
+        img.src = dataUrl;
+    }
+
+    function drawStroke(x1, y1, x2, y2, color, size, strokeTool) {
+        drawCtx.save();
+        drawCtx.lineCap = "round";
+        drawCtx.lineJoin = "round";
+
+        if (strokeTool === "eraser") {
+            drawCtx.globalCompositeOperation = "destination-out";
+            drawCtx.lineWidth = size * 3.5;
+            drawCtx.strokeStyle = "rgba(0,0,0,1)";
+        } else if (strokeTool === "highlighter") {
+            drawCtx.globalCompositeOperation = "source-over";
+            drawCtx.globalAlpha = 0.35;
+            drawCtx.lineWidth = size * 4;
+            drawCtx.strokeStyle = color;
+        } else {
+            drawCtx.globalCompositeOperation = "source-over";
+            drawCtx.lineWidth = size;
+            drawCtx.strokeStyle = color;
+        }
+
+        drawCtx.beginPath();
+        drawCtx.moveTo(x1 * drawCanvas.width, y1 * drawCanvas.height);
+        drawCtx.lineTo(x2 * drawCanvas.width, y2 * drawCanvas.height);
+        drawCtx.stroke();
+        drawCtx.restore();
+    }
+
+    function renderShape(ctx, x1, y1, x2, y2, color, size, shapeType) {
+        const px1 = x1 * ctx.canvas.width, py1 = y1 * ctx.canvas.height;
+        const px2 = x2 * ctx.canvas.width, py2 = y2 * ctx.canvas.height;
+
+        ctx.save();
+        ctx.strokeStyle = color;
+        ctx.lineWidth = size;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.beginPath();
+
+        if (shapeType === "line") {
+            ctx.moveTo(px1, py1);
+            ctx.lineTo(px2, py2);
+        } else if (shapeType === "arrow") {
+            const headlen = 14 + Number(size);
+            const angle = Math.atan2(py2 - py1, px2 - px1);
+            ctx.moveTo(px1, py1);
+            ctx.lineTo(px2, py2);
+            ctx.lineTo(px2 - headlen * Math.cos(angle - Math.PI / 6), py2 - headlen * Math.sin(angle - Math.PI / 6));
+            ctx.moveTo(px2, py2);
+            ctx.lineTo(px2 - headlen * Math.cos(angle + Math.PI / 6), py2 - headlen * Math.sin(angle + Math.PI / 6));
+        } else if (shapeType === "rect") {
+            ctx.strokeRect(px1, py1, px2 - px1, py2 - py1);
+        } else if (shapeType === "circle") {
+            const radius = Math.hypot(px2 - px1, py2 - py1);
+            ctx.arc(px1, py1, radius, 0, Math.PI * 2);
+        }
+        ctx.stroke();
+        ctx.restore();
+    }
+
+    function addLaserPoint(x, y) {
+        laserPoints.push({ x, y, time: Date.now() });
+    }
+
+    function animateLaser() {
+        const now = Date.now();
+        laserPoints = laserPoints.filter(p => now - p.time < 750);
+
+        if (!isDrawing || tool === "laser") {
+            tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height);
+            if (laserPoints.length > 1) {
+                for (let i = 1; i < laserPoints.length; i++) {
+                    const p1 = laserPoints[i - 1];
+                    const p2 = laserPoints[i];
+                    const alpha = 1 - (now - p2.time) / 750;
+                    tempCtx.save();
+                    tempCtx.strokeStyle = `rgba(255, 30, 60, ${alpha})`;
+                    tempCtx.shadowColor = "#ff0033";
+                    tempCtx.shadowBlur = 12;
+                    tempCtx.lineWidth = 6 * alpha;
+                    tempCtx.lineCap = "round";
+                    tempCtx.beginPath();
+                    tempCtx.moveTo(p1.x * tempCanvas.width, p1.y * tempCanvas.height);
+                    tempCtx.lineTo(p2.x * tempCanvas.width, p2.y * tempCanvas.height);
+                    tempCtx.stroke();
+                    tempCtx.restore();
+                }
+            }
+        }
+        requestAnimationFrame(animateLaser);
+    }
+    animateLaser();
+
+    function getPos(e) {
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        return { x: clientX / tempCanvas.width, y: clientY / tempCanvas.height };
+    }
+
+    const isShapeTool = (t) => ["line", "arrow", "rect", "circle"].includes(t);
+
+    tempCanvas.addEventListener("pointerdown", (e) => {
+        isDrawing = true;
+        const pos = getPos(e);
+        startX = lastX = pos.x;
+        startY = lastY = pos.y;
+
+        if (tool === "laser") {
+            addLaserPoint(pos.x, pos.y);
+        } else {
+            saveHistory();
+        }
+    });
+
+    tempCanvas.addEventListener("pointermove", (e) => {
+        if (!isDrawing) return;
+        const pos = getPos(e);
+        const color = document.getElementById("colorPicker").value;
+        const size = document.getElementById("sizeSlider").value;
+
+        if (tool === "laser") {
+            addLaserPoint(pos.x, pos.y);
+        } else if (isShapeTool(tool)) {
+            tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height);
+            renderShape(tempCtx, startX, startY, pos.x, pos.y, color, size, tool);
+        } else {
+            drawStroke(lastX, lastY, pos.x, pos.y, color, size, tool);
+            lastX = pos.x; lastY = pos.y;
+        }
+    });
+
+    tempCanvas.addEventListener("pointerup", (e) => {
+        if (!isDrawing) return;
+        isDrawing = false;
+
+        if (isShapeTool(tool)) {
+            const pos = getPos(e);
+            const color = document.getElementById("colorPicker").value;
+            const size = document.getElementById("sizeSlider").value;
+            tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height);
+            renderShape(drawCtx, startX, startY, pos.x, pos.y, color, size, tool);
+        }
+        if (tool !== "laser") {
+            pages[currentPage].drawData = drawCanvas.toDataURL();
+        }
+    });
+
+    function undo() {
+        const page = pages[currentPage];
+        if (page.history.length === 0) return;
+        page.redoStack.push(drawCanvas.toDataURL());
+        const prev = page.history.pop();
+        page.drawData = prev;
+        restoreImage(drawCtx, prev);
+    }
+
+    function redo() {
+        const page = pages[currentPage];
+        if (page.redoStack.length === 0) return;
+        page.history.push(drawCanvas.toDataURL());
+        const next = page.redoStack.pop();
+        page.drawData = next;
+        restoreImage(drawCtx, next);
+    }
+
+    function clearCurrentPage() {
+        saveHistory();
+        drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+        pages[currentPage].drawData = null;
+    }
+
+    function updatePageUI() {
+        document.getElementById("page-indicator").innerText = `${currentPage + 1} / ${pages.length}`;
+        renderBackground();
+        restoreImage(drawCtx, pages[currentPage].drawData);
+    }
+
+    function switchPage(index) {
+        pages[currentPage].drawData = drawCanvas.toDataURL();
+        currentPage = index;
+        updatePageUI();
+    }
+
+    function addNewPage() {
+        pages[currentPage].drawData = drawCanvas.toDataURL();
+        pages.push({ bgData: null, drawData: null, history: [], redoStack: [] });
+        currentPage = pages.length - 1;
+        updatePageUI();
+    }
+
+    function prevPage() { if (currentPage > 0) switchPage(currentPage - 1); }
+    function nextPage() { if (currentPage < pages.length - 1) switchPage(currentPage + 1); }
+
+    async function handleFileUpload(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        if (file.type === "application/pdf") {
+            const arrayBuffer = await file.arrayBuffer();
+            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+
+            for (let i = 1; i <= pdf.numPages; i++) {
+                const page = await pdf.getPage(i);
+                const viewport = page.getViewport({ scale: 1.5 });
+                const tempC = document.createElement("canvas");
+                tempC.width = viewport.width;
+                tempC.height = viewport.height;
+                await page.render({ canvasContext: tempC.getContext("2d"), viewport }).promise;
+
+                const boardTemp = document.createElement("canvas");
+                boardTemp.width = bgCanvas.width;
+                boardTemp.height = bgCanvas.height;
+                const bCtx = boardTemp.getContext("2d");
+
+                const scale = Math.min(boardTemp.width / tempC.width, boardTemp.height / tempC.height);
+                const w = tempC.width * scale;
+                const h = tempC.height * scale;
+                bCtx.drawImage(tempC, (boardTemp.width - w) / 2, (boardTemp.height - h) / 2, w, h);
+
+                const bgUrl = boardTemp.toDataURL("image/png");
+                if (i === 1 && !pages[currentPage].bgData && !pages[currentPage].drawData) {
+                    pages[currentPage].bgData = bgUrl;
+                } else {
+                    pages.push({ bgData: bgUrl, drawData: null, history: [], redoStack: [] });
+                }
+            }
+            updatePageUI();
+        } else if (file.type.startsWith("image/")) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                pages[currentPage].bgData = e.target.result;
+                updatePageUI();
+            };
+            reader.readAsDataURL(file);
+        }
+        event.target.value = "";
+    }
+
+    async function exportToPDF() {
+        pages[currentPage].drawData = drawCanvas.toDataURL();
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF({ orientation: "landscape", unit: "px", format: [drawCanvas.width, drawCanvas.height] });
+
+        for (let i = 0; i < pages.length; i++) {
+            if (i > 0) pdf.addPage([drawCanvas.width, drawCanvas.height], "landscape");
+
+            const mergeCanvas = document.createElement("canvas");
+            mergeCanvas.width = drawCanvas.width;
+            mergeCanvas.height = drawCanvas.height;
+            const mCtx = mergeCanvas.getContext("2d");
+
+            drawThemePattern(mCtx, mergeCanvas.width, mergeCanvas.height, currentTheme);
+            if (pages[i].bgData) await drawImgSync(mCtx, pages[i].bgData, mergeCanvas.width, mergeCanvas.height);
+            if (pages[i].drawData) await drawImgSync(mCtx, pages[i].drawData, mergeCanvas.width, mergeCanvas.height);
+
+            pdf.addImage(mergeCanvas.toDataURL("image/jpeg", 0.92), "JPEG", 0, 0, drawCanvas.width, drawCanvas.height);
+        }
+        pdf.save("Class_Notes.pdf");
+    }
+
+    function drawImgSync(ctx, src, w, h) {
+        return new Promise((resolve) => {
+            const img = new Image();
+            img.onload = () => { ctx.drawImage(img, 0, 0, w, h); resolve(); };
+            img.src = src;
+        });
+    }
+
+    let camStream = null, isCircle = false;
+    const facecamBox = document.getElementById("facecam-box");
+    const facecamVideo = document.getElementById("facecam-video");
+    const camBtn = document.getElementById("camBtn");
+
+    async function toggleFacecam() {
+        if (!camStream) {
+            try {
+                camStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+                facecamVideo.srcObject = camStream;
+                facecamBox.style.display = "block";
+                camBtn.classList.add("active");
+                camBtn.innerText = "📷 ON";
+            } catch (err) {
+                alert("Camera access nahi mila!");
+            }
+        } else {
+            camStream.getTracks().forEach(track => track.stop());
+            camStream = null;
+            facecamBox.style.display = "none";
+            camBtn.classList.remove("active");
+            camBtn.innerText = "📷 Cam";
+        }
+    }
+
+    function toggleCamShape() {
+        isCircle = !isCircle;
+        facecamBox.style.width = isCircle ? "165px" : "230px";
+        facecamBox.style.height = isCircle ? "165px" : "160px";
+        facecamBox.style.borderRadius = isCircle ? "50%" : "14px";
+    }
+
+    let isDraggingCam = false, offsetX = 0, offsetY = 0;
+    facecamBox.addEventListener("pointerdown", (e) => {
+        if (e.target.id === "cam-size-btn") return;
+        isDraggingCam = true;
+        offsetX = e.clientX - facecamBox.offsetLeft;
+        offsetY = e.clientY - facecamBox.offsetTop;
+    });
+    window.addEventListener("pointermove", (e) => {
+        if (!isDraggingCam) return;
+        facecamBox.style.left = (e.clientX - offsetX) + "px";
+        facecamBox.style.top = (e.clientY - offsetY) + "px";
+        facecamBox.style.right = "auto";
+        facecamBox.style.bottom = "auto";
+    });
+    window.addEventListener("pointerup", () => isDraggingCam = false);
+</script>
+</body>
+</html>
