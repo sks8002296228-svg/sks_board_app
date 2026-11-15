@@ -13,10 +13,10 @@
         
         #board-container { position: relative; width: 100vw; height: 100vh; }
 
-        canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; touch-action: none; }
+        canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; touch-action: none; pointer-events: none; }
         #whiteboard { z-index: 5; pointer-events: auto; }
-        #laser-canvas { z-index: 7; pointer-events: none; }
-        #canvas-3d { z-index: 10; pointer-events: none; }
+        #laser-canvas { z-index: 7; }
+        #canvas-3d { z-index: 10; }
         #canvas-3d.interactive { pointer-events: auto; }
 
         #webcam-container {
@@ -185,7 +185,6 @@
             }
         }
 
-        // Fixed interaction toggle so 3D objects receive touch/mouse events properly
         function setInteraction(type) {
             interactionMode = type;
             if (type === 'draw') {
@@ -197,7 +196,7 @@
                 document.getElementById('mode-3d').classList.add('active');
                 document.getElementById('mode-draw').classList.remove('active');
                 canvas3D.classList.add('interactive');
-                canvas.style.pointerEvents = 'none'; // Allows 3D canvas & OrbitControls to receive touch/mouse
+                canvas.style.pointerEvents = 'none';
             }
         }
 
@@ -394,12 +393,11 @@
             ctx.stroke();
         }
 
-        // Dedicated Laser Rendering Loop with Blinking & Fade-Out on Overlay Canvas
         function renderLaser() {
             laserCtx.clearRect(0, 0, laserCanvas.width, laserCanvas.height);
             if (mode === 'laser') {
                 const now = Date.now();
-                laserPoints = laserPoints.filter(p => now - p.time < 500); // 500ms lifetime
+                laserPoints = laserPoints.filter(p => now - p.time < 500);
 
                 laserPoints.forEach((p) => {
                     const age = now - p.time;
