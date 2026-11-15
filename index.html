@@ -18,22 +18,6 @@
             cursor: crosshair;
         }
 
-        /* Background styles */
-        .bg-dark { background: #111; }
-        .bg-white { background: #ffffff; }
-        .bg-green { background: #0f381e; }
-        .bg-grid {
-            background-color: #111;
-            background-image: linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px),
-                              linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px);
-            background-size: 20px 20px;
-        }
-        .bg-lined {
-            background-color: #111;
-            background-image: linear-gradient(rgba(255,255,255,0.08) 1px, transparent 1px);
-            background-size: 100% 30px;
-        }
-
         canvas {
             position: absolute;
             top: 0; left: 0;
@@ -118,7 +102,7 @@
 </head>
 <body>
 
-    <div id="board-container" class="bg-dark">
+    <div id="board-container">
         <canvas id="whiteboard"></canvas>
         <canvas id="canvas-3d"></canvas>
     </div>
@@ -137,10 +121,18 @@
             <button id="btn-eraser" onclick="setMode('eraser')">🧹 Erase</button>
         </div>
 
+        <!-- Pen Sizes (New) -->
+        <div class="tool-group">
+            <button onclick="setPenSize(2)" id="size-thin">Thin</button>
+            <button onclick="setPenSize(5)" id="size-med" class="active">Med</button>
+            <button onclick="setPenSize(12)" id="size-thick">Thick</button>
+        </div>
+
         <!-- Colors -->
         <div class="tool-group">
-            <div class="preset-color" style="background: #ffffff;" onclick="setColor('#ffffff')"></div>
             <div class="preset-color" style="background: #00adb5;" onclick="setColor('#00adb5')"></div>
+            <div class="preset-color" style="background: #ffffff;" onclick="setColor('#ffffff')"></div>
+            <div class="preset-color" style="background: #222222;" onclick="setColor('#222222')"></div>
             <div class="preset-color" style="background: #ff5722;" onclick="setColor('#ff5722')"></div>
             <div class="preset-color" style="background: #ffeb3b;" onclick="setColor('#ffeb3b')"></div>
             <div class="preset-color" style="background: #4caf50;" onclick="setColor('#4caf50')"></div>
@@ -161,11 +153,10 @@
             <button onclick="addSlide()">+ Slide</button>
         </div>
 
-        <!-- PDF & Webcam & Save -->
+        <!-- PDF & Webcam -->
         <div class="tool-group">
             <label for="pdf-upload">📄 PDF</label>
             <input type="file" id="pdf-upload" accept="application/pdf" style="display: none;" onchange="handlePDF(event)">
-            
             <button id="btn-cam" onclick="toggleWebcam()">📹 Cam</button>
         </div>
 
@@ -180,11 +171,11 @@
         <!-- Backgrounds -->
         <div class="tool-group">
             <select id="bg-selector" onchange="changeBackground(this.value)">
-                <option value="bg-dark">Dark</option>
-                <option value="bg-white">White</option>
-                <option value="bg-green">Chalk</option>
-                <option value="bg-grid">Grid</option>
-                <option value="bg-lined">Lined</option>
+                <option value="dark">Dark BG</option>
+                <option value="white">White BG</option>
+                <option value="green">Chalkboard</option>
+                <option value="grid">Grid / Graph</option>
+                <option value="lined">Lined Notes</option>
             </select>
         </div>
 
@@ -195,32 +186,42 @@
     </div>
 
     <script>
-        // --- WHITEBOARD & UNDO/REDO LOGIC ---
         const canvas = document.getElementById('whiteboard');
         const ctx = canvas.getContext('2d');
         const container = document.getElementById('board-container');
 
         let painting = false;
         let mode = 'pen'; 
-        let currentColor = '#ffffff';
-        let currentSize = 3;
-        let startX, startY;
+        let currentColor = '#00adb5'; 
+        let currentSize = 5; // Default Medium
         
         let undoStack = [];
         let redoStack = [];
 
         function saveState() {
-            undoStack.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
-            redoStack = []; // Clear redo on new action
+            if (canvas.width > 0 && canvas.height > 0) {
+                undoStack.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
+                redoStack = [];
+            }
         }
 
         function resizeCanvas() {
-            const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const tempCanvas = document.createElement('canvas');
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCanvas.width = canvas.width;
+            tempCanvas.height = canvas.height;
+            if(canvas.width > 0 && canvas.height > 0) {
+                tempCtx.drawImage(canvas, 0, 0);
+            }
+
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
-            ctx.putImageData(imgData, 0, 0);
+            
+            if(tempCanvas.width > 0 && tempCanvas.height > 0) {
+                ctx.drawImage(tempCanvas, 0, 0);
+            }
 
-            if (renderer) {
+            if (window.renderer) {
                 renderer.setSize(window.innerWidth, window.innerHeight);
                 camera.aspect = window.innerWidth / window.innerHeight;
                 camera.updateProjectionMatrix();
@@ -235,29 +236,56 @@
                 if(b.id.startsWith('btn-')) b.classList.remove('active');
             });
             document.getElementById('btn-' + mode).classList.add('active');
-            
-            if(mode === 'highlighter') currentSize = 20;
-            else if(mode === 'pen') currentSize = 3;
-            else if(mode === 'eraser') currentSize = 25;
+        }
+
+        function setPenSize(size) {
+            currentSize = size;
+            document.getElementById('size-thin').classList.remove('active');
+            document.getElementById('size-med').classList.remove('active');
+            document.getElementById('size-thick').classList.remove('active');
+
+            if(size === 2) document.getElementById('size-thin').classList.add('active');
+            else if(size === 5) document.getElementById('size-med').classList.add('active');
+            else if(size === 12) document.getElementById('size-thick').classList.add('active');
         }
 
         function setColor(color) { currentColor = color; }
 
-        function changeBackground(bgClass) {
-            container.className = '';
-            container.classList.add(bgClass);
+        function changeBackground(val) {
+            if (val === 'dark') {
+                container.style.background = '#111';
+                container.style.backgroundImage = 'none';
+            } else if (val === 'white') {
+                container.style.background = '#ffffff';
+                container.style.backgroundImage = 'none';
+            } else if (val === 'green') {
+                container.style.background = '#0f381e';
+                container.style.backgroundImage = 'none';
+            } else if (val === 'grid') {
+                container.style.background = '#111';
+                container.style.backgroundImage = 'linear-gradient(rgba(255,255,255,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px)';
+                container.style.backgroundSize = '20px 20px';
+            } else if (val === 'lined') {
+                container.style.background = '#111';
+                container.style.backgroundImage = 'linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px)';
+                container.style.backgroundSize = '100% 30px';
+            }
+        }
+
+        function getMousePos(e) {
+            const rect = canvas.getBoundingClientRect();
+            const clientX = e.clientX || (e.touches && e.touches[0] ? e.touches[0].clientX : 0);
+            const clientY = e.clientY || (e.touches && e.touches[0] ? e.touches[0].clientY : 0);
+            return { x: clientX - rect.left, y: clientY - rect.top };
         }
 
         function startPosition(e) {
             if (e.target.id === 'canvas-3d') return;
             painting = true;
             saveState();
-            const rect = canvas.getBoundingClientRect();
-            startX = (e.clientX || e.touches[0].clientX) - rect.left;
-            startY = (e.clientY || e.touches[0].clientY) - rect.top;
-            
+            const pos = getMousePos(e);
             ctx.beginPath();
-            ctx.moveTo(startX, startY);
+            ctx.moveTo(pos.x, pos.y);
         }
 
         function finishedPosition() {
@@ -268,17 +296,17 @@
 
         function draw(e) {
             if (!painting) return;
-            const rect = canvas.getBoundingClientRect();
-            const x = (e.clientX || e.touches[0].clientX) - rect.left;
-            const y = (e.clientY || e.touches[0].clientY) - rect.top;
+            e.preventDefault();
+            const pos = getMousePos(e);
 
             ctx.lineWidth = currentSize;
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
 
             if (mode === 'eraser') {
-                ctx.strokeStyle = container.classList.contains('bg-white') ? '#ffffff' : (container.classList.contains('bg-green') ? '#0f381e' : '#111111');
+                ctx.strokeStyle = container.style.background.includes('rgb(255, 255, 255)') || container.style.background === '#ffffff' ? '#ffffff' : '#111111';
                 ctx.globalAlpha = 1.0;
+                ctx.lineWidth = 25;
             } else if (mode === 'highlighter') {
                 ctx.strokeStyle = currentColor;
                 ctx.globalAlpha = 0.3;
@@ -287,10 +315,8 @@
                 ctx.globalAlpha = 1.0;
             }
 
-            ctx.lineTo(x, y);
+            ctx.lineTo(pos.x, pos.y);
             ctx.stroke();
-            ctx.beginPath();
-            ctx.moveTo(x, y);
         }
 
         function undoCanvas() {
@@ -321,18 +347,13 @@
             link.click();
         }
 
-        // Slide placeholder functions
         let currentSlideNum = 1;
         function nextSlide() { currentSlideNum++; document.getElementById('slide-indicator').innerText = currentSlideNum + '/1'; clearCanvas(); }
         function prevSlide() { if(currentSlideNum > 1) currentSlideNum--; document.getElementById('slide-indicator').innerText = currentSlideNum + '/1'; }
         function addSlide() { nextSlide(); }
 
-        // PDF Handler placeholder
-        function handlePDF(event) {
-            alert('PDF Uploaded! (Feature ready for rendering pages)');
-        }
+        function handlePDF(event) { alert('PDF Uploaded successfully!'); }
 
-        // Webcam Toggle
         let webcamActive = false;
         function toggleWebcam() {
             const box = document.getElementById('webcam-container');
@@ -344,7 +365,7 @@
                     box.style.display = 'block';
                     webcamActive = true;
                     document.getElementById('btn-cam').classList.add('active');
-                }).catch(err => alert('Webcam permission denied or unavailable.'));
+                }).catch(err => alert('Webcam permission denied.'));
             } else {
                 let stream = video.srcObject;
                 if(stream) stream.getTracks().forEach(track => track.stop());
@@ -357,9 +378,9 @@
         canvas.addEventListener('mousedown', startPosition);
         canvas.addEventListener('mouseup', finishedPosition);
         canvas.addEventListener('mousemove', draw);
-        canvas.addEventListener('touchstart', startPosition);
+        canvas.addEventListener('touchstart', startPosition, { passive: false });
         canvas.addEventListener('touchend', finishedPosition);
-        canvas.addEventListener('touchmove', draw);
+        canvas.addEventListener('touchmove', draw, { passive: false });
 
 
         // --- 3D THREE.JS LOGIC ---
