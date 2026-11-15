@@ -25,29 +25,40 @@
         }
         #webcam-video { width: 100%; height: 100%; object-fit: cover; }
 
-        /* Fixed Horizontal & Compact Draggable Toolbar */
+        /* Smart Board Style Compact Floating Toolbar */
         #toolbar {
             position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
             background: rgba(30, 30, 30, 0.95); backdrop-filter: blur(10px);
-            padding: 6px 10px; border-radius: 12px; display: inline-flex; align-items: center; gap: 6px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.6); z-index: 300; flex-wrap: nowrap;
+            padding: 6px 10px; border-radius: 12px; display: flex; align-items: center; gap: 6px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.6); z-index: 300;
             cursor: move; touch-action: none; border: 1px solid rgba(255,255,255,0.2);
             white-space: nowrap; max-width: 98vw;
         }
 
-        .tool-group { display: flex; align-items: center; gap: 4px; border-right: 1px solid rgba(255,255,255,0.2); padding-right: 6px; cursor: default; flex-shrink: 0; }
+        .tool-group { display: flex; align-items: center; gap: 4px; border-right: 1px solid rgba(255,255,255,0.2); padding-right: 6px; cursor: default; }
         .tool-group:last-child { border-right: none; }
 
         button, select, label {
-            background: #2a2a2a; color: white; border: 1px solid #444; padding: 5px 8px;
-            border-radius: 6px; cursor: pointer; font-size: 11px; transition: 0.2s;
-            display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; flex-shrink: 0;
+            background: #2a2a2a; color: white; border: 1px solid #444; padding: 6px 9px;
+            border-radius: 6px; cursor: pointer; font-size: 12px; transition: 0.2s;
+            display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
         }
         button:hover, select:hover, label:hover { background: #3a3a3a; }
         button.active { background: #00adb5; border-color: #00adb5; font-weight: bold; }
 
-        .preset-color { width: 18px; height: 18px; border-radius: 50%; cursor: pointer; border: 2px solid #fff; display: inline-block; flex-shrink: 0; }
-        input[type="range"] { width: 60px; accent-color: #00adb5; vertical-align: middle; }
+        .preset-color { width: 18px; height: 18px; border-radius: 50%; cursor: pointer; border: 2px solid #fff; display: inline-block; }
+        input[type="range"] { width: 70px; accent-color: #00adb5; vertical-align: middle; }
+
+        /* More Menu Popup Modal */
+        #more-menu {
+            position: absolute; bottom: 75px; left: 50%; transform: translateX(-50%);
+            background: rgba(20, 20, 20, 0.95); backdrop-filter: blur(12px);
+            border: 1px solid rgba(255,255,255,0.2); border-radius: 12px;
+            padding: 12px; display: none; flex-direction: column; gap: 10px;
+            z-index: 350; box-shadow: 0 10px 40px rgba(0,0,0,0.8); max-width: 95vw;
+        }
+        .menu-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 8px; }
+        .menu-row:last-child { border-bottom: none; padding-bottom: 0; }
     </style>
 </head>
 <body>
@@ -59,38 +70,17 @@
 
     <div id="webcam-container"><video id="webcam-video" autoplay playsinline></video></div>
 
+    <!-- Smart Board Compact Toolbar -->
     <div id="toolbar">
         <div class="tool-group">
-            <button id="mode-draw" class="active" onclick="setInteraction('draw')">✍️ Draw</button>
-            <button id="mode-3d" onclick="setInteraction('3d')">🧊 3D Orbit</button>
+            <button id="mode-draw" class="active" onclick="setInteraction('draw')">✍️</button>
+            <button id="mode-3d" onclick="setInteraction('3d')">🧊</button>
         </div>
 
         <div class="tool-group">
-            <button id="btn-pen" class="active" onclick="setMode('pen')">🖊️ Pen</button>
-            <button id="btn-highlighter" onclick="setMode('highlighter')">🖍️ High</button>
-            <button id="btn-eraser" onclick="setMode('eraser')">🧹 Erase</button>
-        </div>
-
-        <div class="tool-group">
-            <label>Size:</label>
-            <input type="range" id="pen-size" min="1" max="50" value="5" oninput="setBrushSize(this.value)">
-            <span id="size-val" style="color: #fff; width: 15px;">5</span>
-        </div>
-
-        <div class="tool-group">
-            <div class="preset-color" style="background: #00adb5;" onclick="setColor('#00adb5')"></div>
-            <div class="preset-color" style="background: #ffffff;" onclick="setColor('#ffffff')"></div>
-            <div class="preset-color" style="background: #ff5722;" onclick="setColor('#ff5722')"></div>
-            <div class="preset-color" style="background: #ffeb3b;" onclick="setColor('#ffeb3b')"></div>
-            <div class="preset-color" style="background: #4caf50;" onclick="setColor('#4caf50')"></div>
-        </div>
-
-        <div class="tool-group">
-            <button onclick="setShape('free')" id="shape-free" class="active">Free</button>
-            <button onclick="setShape('line')" id="shape-line">Line</button>
-            <button onclick="setShape('rect')" id="shape-rect">Rect</button>
-            <button onclick="setShape('circle')" id="shape-circle">Circle</button>
-            <button onclick="setShape('arrow')" id="shape-arrow">Arrow</button>
+            <button id="btn-pen" class="active" onclick="setMode('pen')">🖊️</button>
+            <button id="btn-highlighter" onclick="setMode('highlighter')">🖍️</button>
+            <button id="btn-eraser" onclick="setMode('eraser')">🧹</button>
         </div>
 
         <div class="tool-group">
@@ -99,39 +89,66 @@
             <button onclick="clearCanvas()" style="background: #d9534f;" title="Clear">🗑️</button>
         </div>
 
-        <div class="tool-group">
+        <div class="tool-group" style="border: none;">
+            <button id="btn-more" onclick="toggleMoreMenu()" style="background: #00adb5; font-weight: bold;">⚙️ More</button>
+        </div>
+    </div>
+
+    <!-- More Tools Popup Menu -->
+    <div id="more-menu">
+        <!-- Row 1: Brush Size & Colors -->
+        <div class="menu-row">
+            <label style="font-size: 11px;">Size:</label>
+            <input type="range" id="pen-size" min="1" max="50" value="5" oninput="setBrushSize(this.value)">
+            <span id="size-val" style="color: #fff; font-size: 11px; width: 20px;">5</span>
+            <div class="preset-color" style="background: #00adb5;" onclick="setColor('#00adb5')"></div>
+            <div class="preset-color" style="background: #ffffff;" onclick="setColor('#ffffff')"></div>
+            <div class="preset-color" style="background: #ff5722;" onclick="setColor('#ff5722')"></div>
+            <div class="preset-color" style="background: #ffeb3b;" onclick="setColor('#ffeb3b')"></div>
+            <div class="preset-color" style="background: #4caf50;" onclick="setColor('#4caf50')"></div>
+        </div>
+
+        <!-- Row 2: 2D Shapes -->
+        <div class="menu-row">
+            <span style="color:#aaa; font-size:11px;">Shapes:</span>
+            <button onclick="setShape('free')" id="shape-free" class="active">Free</button>
+            <button onclick="setShape('line')" id="shape-line">Line</button>
+            <button onclick="setShape('rect')" id="shape-rect">Rect</button>
+            <button onclick="setShape('circle')" id="shape-circle">Circle</button>
+            <button onclick="setShape('arrow')" id="shape-arrow">Arrow</button>
+        </div>
+
+        <!-- Row 3: Slides & Media -->
+        <div class="menu-row">
             <button onclick="prevSlide()">◀</button>
             <span id="slide-indicator" style="font-size: 11px; color: #aaa;">1/1</span>
             <button onclick="nextSlide()">▶</button>
             <button onclick="addSlide()">+ Slide</button>
-        </div>
-
-        <div class="tool-group">
             <label for="pdf-upload">📄 PDF</label>
             <input type="file" id="pdf-upload" accept="application/pdf" style="display: none;" onchange="handlePDF(event)">
             <button id="btn-cam" onclick="toggleWebcam()">📹 Cam</button>
         </div>
 
-        <div class="tool-group">
-            <button onclick="spawn3D('cube')">🧊 Cube</button>
-            <button onclick="spawn3D('sphere')">⚽ Sphere</button>
-            <button onclick="spawn3D('cylinder')">🥫 Cyl</button>
-            <button id="btn-trans" onclick="toggleTransparency()">👓 Trans</button>
-            <button id="btn-rot" class="active" onclick="toggleRotation()">🔄 Rot</button>
-            <button onclick="clear3D()" style="background: #c9302c;">Clear</button>
+        <!-- Row 4: 3D Objects & Controls -->
+        <div class="menu-row">
+            <span style="color:#aaa; font-size:11px;">3D:</span>
+            <button onclick="spawn3D('cube')">Cube</button>
+            <button onclick="spawn3D('sphere')">Sphere</button>
+            <button onclick="spawn3D('cylinder')">Cyl</button>
+            <button id="btn-trans" onclick="toggleTransparency()">Trans</button>
+            <button id="btn-rot" class="active" onclick="toggleRotation()">Rot</button>
+            <button onclick="clear3D()" style="background: #c9302c;">Clear 3D</button>
         </div>
 
-        <div class="tool-group">
+        <!-- Row 5: Background & Save -->
+        <div class="menu-row">
             <select id="bg-selector" onchange="changeBackground(this.value)">
-                <option value="dark">Dark</option>
-                <option value="white">White</option>
-                <option value="green">Chalk</option>
-                <option value="grid">Grid</option>
+                <option value="dark">Dark BG</option>
+                <option value="white">White BG</option>
+                <option value="green">Chalkboard</option>
+                <option value="grid">Grid / Graph</option>
             </select>
-        </div>
-
-        <div class="tool-group" style="border: none;">
-            <button onclick="saveCanvas()" style="background: #5cb85c;">💾</button>
+            <button onclick="saveCanvas()" style="background: #5cb85c;">💾 Save Notes</button>
         </div>
     </div>
 
@@ -140,6 +157,7 @@
         const ctx = canvas.getContext('2d');
         const container = document.getElementById('board-container');
         const toolbar = document.getElementById('toolbar');
+        const moreMenu = document.getElementById('more-menu');
         const canvas3D = document.getElementById('canvas-3d');
 
         let painting = false;
@@ -152,6 +170,14 @@
         
         let undoStack = [];
         let redoStack = [];
+
+        function toggleMoreMenu() {
+            if (moreMenu.style.display === 'flex') {
+                moreMenu.style.display = 'none';
+            } else {
+                moreMenu.style.display = 'flex';
+            }
+        }
 
         function setInteraction(type) {
             interactionMode = type;
@@ -191,6 +217,7 @@
         window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
 
+        // Draggable Toolbar Implementation
         let isDragging = false;
         let offsetX, offsetY;
         toolbar.addEventListener('mousedown', (e) => {
@@ -243,7 +270,7 @@
         function setShape(shape) {
             setInteraction('draw');
             currentShape = shape;
-            document.querySelectorAll('.tool-group button').forEach(b => {
+            document.querySelectorAll('#more-menu button').forEach(b => {
                 if(b.id.startsWith('shape-')) b.classList.remove('active');
             });
             document.getElementById('shape-' + shape).classList.add('active');
