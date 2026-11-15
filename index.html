@@ -191,12 +191,12 @@
                 document.getElementById('mode-draw').classList.add('active');
                 document.getElementById('mode-3d').classList.remove('active');
                 canvas3D.classList.remove('interactive');
-                canvas.style.pointerEvents = 'auto';
+                if (canvas) canvas.style.pointerEvents = 'auto';
             } else {
                 document.getElementById('mode-3d').classList.add('active');
                 document.getElementById('mode-draw').classList.remove('active');
                 canvas3D.classList.add('interactive');
-                canvas.style.pointerEvents = 'none';
+                if (canvas) canvas.style.pointerEvents = 'none';
             }
         }
 
@@ -508,22 +508,32 @@
             return new THREE.BoxGeometry(2, 2, 2);
         }
 
-        function spawn3D(type) {
-            setInteraction('3d');
-            if (currentMesh) scene.remove(currentMesh);
-
-            const geometry = createMeshGeometry(type);
-            const material = new THREE.MeshStandardMaterial({ 
-                color: new THREE.Color(currentColor), 
+        function createMeshMaterial(colorHex) {
+            return new THREE.MeshStandardMaterial({ 
+                color: new THREE.Color(colorHex), 
                 roughness: 0.3, 
                 metalness: 0.2,
                 transparent: isTransparent,
                 opacity: isTransparent ? 0.6 : 1.0
             });
+        }
 
+        function spawn3D(type) {
+            setInteraction('3d');
+            
+            if (scene && currentMesh) {
+                scene.remove(currentMesh);
+                currentMesh.geometry.dispose();
+                currentMesh.material.dispose();
+                currentMesh = null;
+            }
+
+            const geometry = createMeshGeometry(type);
+            const material = createMeshMaterial(currentColor);
             currentMesh = new THREE.Mesh(geometry, material);
             scene.add(currentMesh);
-            controls.reset();
+            
+            if (controls) controls.reset();
         }
 
         function toggleTransparency() {
@@ -543,13 +553,25 @@
             if(btn) btn.classList.toggle('active');
         }
 
-        function clear3D() { if (currentMesh) { scene.remove(currentMesh); currentMesh = null; } }
+        function clear3D() { 
+            if (scene && currentMesh) { 
+                scene.remove(currentMesh); 
+                currentMesh.geometry.dispose();
+                currentMesh.material.dispose();
+                currentMesh = null; 
+            } 
+        }
 
         function animate3D() {
             requestAnimationFrame(animate3D);
-            if (currentMesh && rotate3D) { currentMesh.rotation.x += 0.01; currentMesh.rotation.y += 0.015; }
+            if (currentMesh && rotate3D) { 
+                currentMesh.rotation.x += 0.01; 
+                currentMesh.rotation.y += 0.015; 
+            }
             if (controls) controls.update();
-            if (renderer && scene && camera) renderer.render(scene, camera);
+            if (renderer && scene && camera) {
+                renderer.render(scene, camera);
+            }
         }
 
         init3D();
