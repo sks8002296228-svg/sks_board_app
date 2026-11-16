@@ -17,7 +17,6 @@
         #whiteboard { z-index: 5; pointer-events: auto; }
         #laser-canvas { z-index: 7; }
         #canvas-3d { z-index: 10; }
-        #canvas-3d.interactive { pointer-events: auto; }
 
         #webcam-container {
             position: absolute; top: 20px; right: 20px; width: 200px; height: 150px;
@@ -178,11 +177,7 @@
         let laserPoints = [];
 
         function toggleMoreMenu() {
-            if (moreMenu.style.display === 'flex') {
-                moreMenu.style.display = 'none';
-            } else {
-                moreMenu.style.display = 'flex';
-            }
+            moreMenu.style.display = (moreMenu.style.display === 'flex') ? 'none' : 'flex';
         }
 
         function setInteraction(type) {
@@ -190,13 +185,13 @@
             if (type === 'draw') {
                 document.getElementById('mode-draw').classList.add('active');
                 document.getElementById('mode-3d').classList.remove('active');
-                canvas3D.classList.remove('interactive');
-                if (canvas) canvas.style.pointerEvents = 'auto';
+                canvas3D.style.pointerEvents = 'none';
+                canvas.style.pointerEvents = 'auto';
             } else {
                 document.getElementById('mode-3d').classList.add('active');
                 document.getElementById('mode-draw').classList.remove('active');
-                canvas3D.classList.add('interactive');
-                if (canvas) canvas.style.pointerEvents = 'none';
+                canvas3D.style.pointerEvents = 'auto';
+                canvas.style.pointerEvents = 'none';
             }
         }
 
@@ -211,13 +206,13 @@
             const tempCanvas = document.createElement('canvas');
             const tempCtx = tempCanvas.getContext('2d');
             tempCanvas.width = canvas.width; tempCanvas.height = canvas.height;
-            if(canvas.width > 0 && canvas.height > 0) tempCtx.drawImage(canvas, 0, 0);
+            if (canvas.width > 0 && canvas.height > 0) tempCtx.drawImage(canvas, 0, 0);
 
             canvas.width = window.innerWidth; canvas.height = window.innerHeight;
             laserCanvas.width = window.innerWidth; laserCanvas.height = window.innerHeight;
-            if(tempCanvas.width > 0 && tempCanvas.height > 0) ctx.drawImage(tempCanvas, 0, 0);
+            if (tempCanvas.width > 0 && tempCanvas.height > 0) ctx.drawImage(tempCanvas, 0, 0);
 
-            if (window.renderer) {
+            if (renderer) {
                 renderer.setSize(window.innerWidth, window.innerHeight);
                 camera.aspect = window.innerWidth / window.innerHeight;
                 camera.updateProjectionMatrix();
@@ -313,8 +308,17 @@
             if (interactionMode !== 'draw') return;
             painting = true;
             if (mode !== 'laser') saveState();
+            
+            // Fix: Global composite setup directly on touch start
+            if (mode === 'eraser') {
+                ctx.globalCompositeOperation = 'destination-out';
+            } else {
+                ctx.globalCompositeOperation = 'source-over';
+            }
+
             const pos = getMousePos(e);
             startX = pos.x; startY = pos.y;
+            
             if (mode !== 'laser') {
                 ctx.beginPath();
                 ctx.moveTo(startX, startY);
@@ -348,14 +352,17 @@
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
 
+            // PERFECT ERASER FIX
             if (mode === 'eraser') {
-                ctx.strokeStyle = container.style.background.includes('rgb(255, 255, 255)') || container.style.background === '#ffffff' ? '#ffffff' : '#111';
-                ctx.globalAlpha = 1.0;
-                ctx.lineWidth = currentSize * 3;
+                ctx.globalCompositeOperation = 'destination-out'; // This removes pixels completely
+                ctx.lineWidth = currentSize * 5; // Extra thick for easy erasing
+                ctx.strokeStyle = "rgba(0,0,0,1)"; // Color doesn't matter for destination-out
             } else if (mode === 'highlighter') {
+                ctx.globalCompositeOperation = 'source-over';
                 ctx.strokeStyle = currentColor;
                 ctx.globalAlpha = 0.3;
             } else {
+                ctx.globalCompositeOperation = 'source-over';
                 ctx.strokeStyle = currentColor;
                 ctx.globalAlpha = 1.0;
             }
@@ -365,6 +372,7 @@
         }
 
         function drawShape(x, y) {
+            ctx.globalCompositeOperation = 'source-over';
             ctx.strokeStyle = currentColor;
             ctx.lineWidth = currentSize;
             ctx.globalAlpha = (mode === 'highlighter') ? 0.3 : 1.0;
@@ -472,12 +480,12 @@
             }
         }
 
-        container.addEventListener('mousedown', startPosition);
-        container.addEventListener('mouseup', finishedPosition);
-        container.addEventListener('mousemove', draw);
-        container.addEventListener('touchstart', startPosition, { passive: false });
-        container.addEventListener('touchend', finishedPosition);
-        container.addEventListener('touchmove', draw, { passive: false });
+        canvas.addEventListener('mousedown', startPosition);
+        canvas.addEventListener('mouseup', finishedPosition);
+        canvas.addEventListener('mousemove', draw);
+        canvas.addEventListener('touchstart', startPosition, { passive: false });
+        canvas.addEventListener('touchend', finishedPosition);
+        canvas.addEventListener('touchmove', draw, { passive: false });
 
         var renderer, camera;
         let scene, currentMesh, controls;
@@ -492,7 +500,7 @@
             const canvas3DElement = document.getElementById('canvas-3d');
             renderer = new THREE.WebGLRenderer({ canvas: canvas3DElement, alpha: true, antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
-            window.renderer = renderer;
+            renderer.setPixelRatio(window.devicePixelRatio); // For sharper 3D
 
             controls = new THREE.OrbitControls(camera, renderer.domElement);
             controls.enableDamping = true;
@@ -515,35 +523,39 @@
             return new THREE.BoxGeometry(2, 2, 2);
         }
 
-        function createMeshMaterial(colorHex) {
-            return new THREE.MeshLambertMaterial({ 
-                color: new THREE.Color(colorHex), 
-                wireframe: false,
-                transparent: isTransparent,
-                opacity: isTransparent ? 0.6 : 1.0
-            });
-        }
-
+        // PERFECT 3D SPAWN FIX
         function spawn3D(type) {
+            if (window.event) window.event.stopPropagation();
+            
             setInteraction('3d');
             
             if (scene && currentMesh) {
                 scene.remove(currentMesh);
-                currentMesh.geometry.dispose();
-                currentMesh.material.dispose();
+                if (currentMesh.geometry) currentMesh.geometry.dispose();
+                if (currentMesh.material) currentMesh.material.dispose();
                 currentMesh = null;
             }
 
             const geometry = createMeshGeometry(type);
-            const material = createMeshMaterial(currentColor);
+            const material = new THREE.MeshStandardMaterial({ 
+                color: currentColor, 
+                roughness: 0.2, 
+                metalness: 0.1,
+                transparent: isTransparent,
+                opacity: isTransparent ? 0.6 : 1.0
+            });
+
             currentMesh = new THREE.Mesh(geometry, material);
             scene.add(currentMesh);
             
             if (controls) controls.reset();
-            if (moreMenu) moreMenu.style.display = 'none';
+            
+            // Auto close menu when 3D is spawned
+            document.getElementById('more-menu').style.display = 'none';
         }
 
         function toggleTransparency() {
+            if (window.event) window.event.stopPropagation();
             isTransparent = !isTransparent;
             const btn = document.getElementById('btn-trans');
             if(btn) btn.classList.toggle('active');
@@ -555,18 +567,22 @@
         }
 
         function toggleRotation() {
+            if (window.event) window.event.stopPropagation();
             rotate3D = !rotate3D;
             const btn = document.getElementById('btn-rot');
             if(btn) btn.classList.toggle('active');
         }
 
         function clear3D() { 
+            if (window.event) window.event.stopPropagation();
             if (scene && currentMesh) { 
                 scene.remove(currentMesh); 
-                currentMesh.geometry.dispose();
-                currentMesh.material.dispose();
+                if(currentMesh.geometry) currentMesh.geometry.dispose();
+                if(currentMesh.material) currentMesh.material.dispose();
                 currentMesh = null; 
-            } 
+            }
+            setInteraction('draw');
+            document.getElementById('more-menu').style.display = 'none';
         }
 
         function animate3D() {
@@ -581,8 +597,7 @@
             }
         }
 
-        // Initialize 3D immediately when script runs
-        init3D();
+        window.addEventListener('load', init3D);
     </script>
 </body>
 </html>
