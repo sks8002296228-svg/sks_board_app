@@ -135,12 +135,12 @@
         <!-- Row 4: 3D Objects & Controls -->
         <div class="menu-row">
             <span style="color:#aaa; font-size:11px;">3D:</span>
-            <button onclick="spawn3D('cube')">Cube</button>
-            <button onclick="spawn3D('sphere')">Sphere</button>
-            <button onclick="spawn3D('cylinder')">Cyl</button>
-            <button id="btn-trans" onclick="toggleTransparency()">Trans</button>
-            <button id="btn-rot" class="active" onclick="toggleRotation()">Rot</button>
-            <button onclick="clear3D()" style="background: #c9302c;">Clear 3D</button>
+            <button onclick="spawn3D(event, 'cube')">Cube</button>
+            <button onclick="spawn3D(event, 'sphere')">Sphere</button>
+            <button onclick="spawn3D(event, 'cylinder')">Cyl</button>
+            <button id="btn-trans" onclick="toggleTransparency(event)">Trans</button>
+            <button id="btn-rot" class="active" onclick="toggleRotation(event)">Rot</button>
+            <button onclick="clear3D(event)" style="background: #c9302c;">Clear 3D</button>
         </div>
 
         <!-- Row 5: Background & Save -->
@@ -212,9 +212,11 @@
             if (tempCanvas.width > 0 && tempCanvas.height > 0) ctx.drawImage(tempCanvas, 0, 0);
 
             if (window.renderer) {
-                renderer.setSize(window.innerWidth, window.innerHeight);
-                camera.aspect = window.innerWidth / window.innerHeight;
-                camera.updateProjectionMatrix();
+                window.renderer.setSize(window.innerWidth, window.innerHeight);
+                if(window.camera) {
+                    window.camera.aspect = window.innerWidth / window.innerHeight;
+                    window.camera.updateProjectionMatrix();
+                }
             }
         }
         window.addEventListener('resize', resizeCanvas);
@@ -255,7 +257,6 @@
             setInteraction('draw');
             mode = newMode;
             
-            // Reset to freeform when changing tools so shapes don't glitch
             if (newMode !== 'pen' && currentShape !== 'free') {
                 currentShape = 'free';
                 document.querySelectorAll('#more-menu button[id^="shape-"]').forEach(b => b.classList.remove('active'));
@@ -285,9 +286,8 @@
 
         function setShape(shape) {
             setInteraction('draw');
-            mode = 'pen'; // Force pen mode so we can draw shapes properly
+            mode = 'pen'; 
             
-            // Highlight correct tool button
             document.querySelectorAll('#toolbar button').forEach(b => {
                 if(b.id && (b.id.startsWith('btn-pen') || b.id.startsWith('btn-highlighter') || b.id.startsWith('btn-eraser') || b.id.startsWith('btn-laser'))) b.classList.remove('active');
             });
@@ -341,7 +341,7 @@
         function finishedPosition() {
             if (!painting) return;
             painting = false;
-            ctx.beginPath(); // Reset path
+            ctx.beginPath(); 
         }
 
         function draw(e) {
@@ -355,7 +355,7 @@
             }
 
             if (currentShape !== 'free' && mode !== 'eraser') {
-                ctx.putImageData(snapshot, 0, 0); // Restore snapshot to prevent trailing
+                ctx.putImageData(snapshot, 0, 0); 
                 drawShape(pos.x, pos.y);
                 return;
             }
@@ -487,7 +487,6 @@
             }
         }
 
-        // Attach events to whiteboard directly so it only catches drawing interactions
         canvas.addEventListener('mousedown', startPosition);
         canvas.addEventListener('mouseup', finishedPosition);
         canvas.addEventListener('mousemove', draw);
@@ -495,7 +494,9 @@
         canvas.addEventListener('touchend', finishedPosition);
         canvas.addEventListener('touchmove', draw, { passive: false });
 
-        var renderer, camera;
+        // Global variables for 3D
+        window.renderer = null;
+        window.camera = null;
         window.scene = null;
         window.currentMesh = null;
         let controls;
@@ -503,16 +504,16 @@
         let isTransparent = false;
 
         function init3D() {
-            if (renderer) return;
-            window.scene = new THREE.Scene();
-            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            if (window.renderer) return; // Prevent double initialization
             
-            renderer = new THREE.WebGLRenderer({ canvas: canvas3D, alpha: true, antialias: true });
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.setPixelRatio(window.devicePixelRatio);
-            window.renderer = renderer;
+            window.scene = new THREE.Scene();
+            window.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            
+            window.renderer = new THREE.WebGLRenderer({ canvas: canvas3D, alpha: true, antialias: true });
+            window.renderer.setSize(window.innerWidth, window.innerHeight);
+            window.renderer.setPixelRatio(window.devicePixelRatio);
 
-            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls = new THREE.OrbitControls(window.camera, window.renderer.domElement);
             controls.enableDamping = true;
 
             const ambientLight = new THREE.AmbientLight(0xffffff, 0.9);
@@ -522,7 +523,7 @@
             dirLight.position.set(5, 10, 7);
             window.scene.add(dirLight);
 
-            camera.position.z = 5;
+            window.camera.position.z = 5;
             animate3D();
         }
 
@@ -533,10 +534,13 @@
             return new THREE.BoxGeometry(2, 2, 2);
         }
 
-        function spawn3D(type) {
-            if (window.event) window.event.stopPropagation();
+        function spawn3D(e, type) {
+            if (e) e.stopPropagation(); // Safe event stopping
             
             setInteraction('3d');
+            
+            // Re-initialize if not ready
+            if (!window.scene) init3D();
             
             if (window.scene && window.currentMesh) {
                 window.scene.remove(window.currentMesh);
@@ -561,8 +565,8 @@
             document.getElementById('more-menu').style.display = 'none';
         }
 
-        function toggleTransparency() {
-            if (window.event) window.event.stopPropagation();
+        function toggleTransparency(e) {
+            if (e) e.stopPropagation();
             isTransparent = !isTransparent;
             const btn = document.getElementById('btn-trans');
             if(btn) btn.classList.toggle('active');
@@ -573,15 +577,15 @@
             }
         }
 
-        function toggleRotation() {
-            if (window.event) window.event.stopPropagation();
+        function toggleRotation(e) {
+            if (e) e.stopPropagation();
             rotate3D = !rotate3D;
             const btn = document.getElementById('btn-rot');
             if(btn) btn.classList.toggle('active');
         }
 
-        function clear3D() { 
-            if (window.event) window.event.stopPropagation();
+        function clear3D(e) { 
+            if (e) e.stopPropagation();
             if (window.scene && window.currentMesh) { 
                 window.scene.remove(window.currentMesh); 
                 if(window.currentMesh.geometry) window.currentMesh.geometry.dispose();
@@ -599,11 +603,12 @@
                 window.currentMesh.rotation.y += 0.015; 
             }
             if (controls) controls.update();
-            if (renderer && window.scene && camera) {
-                renderer.render(window.scene, camera);
+            if (window.renderer && window.scene && window.camera) {
+                window.renderer.render(window.scene, window.camera);
             }
         }
 
+        // Initialize 3D on load
         window.addEventListener('load', init3D);
     </script>
 </body>
