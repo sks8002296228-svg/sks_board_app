@@ -9,7 +9,7 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body, html { width: 100%; height: 100%; overflow: hidden; background: #111; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body, html { width: 100%; height: 100%; overflow: hidden; background: #0f381e; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         
         #board-container { position: relative; width: 100vw; height: 100vh; }
 
@@ -485,6 +485,7 @@
         let isTransparent = false;
 
         function init3D() {
+            if (renderer) return;
             scene = new THREE.Scene();
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
             
@@ -580,10 +581,8 @@
             }
         }
 
-        // Initialize 3D when window loads so dimensions are 100% correct
-        window.addEventListener('load', () => {
-            init3D();
-        });
+        // Initialize 3D immediately when script runs
+        init3D();
     </script>
 </body>
 </html>
